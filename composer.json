@@ -1,0 +1,16 @@
+{
+    "name": "sportevents/team-management",
+    "description": "Sistema di gestione eventi sportivi con team e iscrizioni collettive",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "phpoffice/phpspreadsheet": "^1.29"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

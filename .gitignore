@@ -1,0 +1,53 @@
+# PHP
+*.log
+*.tmp
+*.temp
+/vendor/
+composer.phar
+
+# Database
+*.sqlite
+*.db
+*.sql.backup
+
+# Configuration files (mantieni config.example.php)
+config/config.php
+config/database.php
+
+# Upload directories (mantieni la struttura ma non i file)
+uploads/certificates/*
+uploads/cards/*
+uploads/events/*
+uploads/gpx/*
+uploads/receipts/*
+!uploads/certificates/.gitkeep
+!uploads/cards/.gitkeep
+!uploads/events/.gitkeep
+!uploads/gpx/.gitkeep
+!uploads/receipts/.gitkeep
+
+# Cache and temporary files
+cache/
+tmp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+error.log
+access.log
+debug.log
