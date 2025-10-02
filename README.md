@@ -1,31 +1,218 @@
-# SportEvents - Piattaforma Eventi Sportivi
+# 🏃‍♂️ SportEvents - Sistema di Gestione Eventi Sportivi
 
-Una moderna web application PHP per la gestione e iscrizione a eventi sportivi, simile a channel.endu.net ma con funzionalità personalizzate.
+Sistema completo per la gestione di eventi sportivi con funzionalità avanzate per organizzatori e partecipanti.
 
-## 🚀 Caratteristiche Principali
+![PHP](https://img.shields.io/badge/PHP-8%2B-777BB4?style=flat-square&logo=php)
+![MySQL](https://img.shields.io/badge/MySQL-5.7%2B-4479A1?style=flat-square&logo=mysql)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?style=flat-square&logo=javascript)
+![CSS3](https://img.shields.io/badge/CSS3-Modern-1572B6?style=flat-square&logo=css3)
 
-### Per i Partecipanti
-- **Registrazione semplice** con dati personali e documenti
-- **Ricerca eventi** per sport, località, data e categoria
-- **Iscrizioni online** con pagamenti sicuri
-- **Area personale** con storico iscrizioni e documenti
-- **Notifiche** email/SMS per aggiornamenti
+## 🚀 Funzionalità Principali
 
-### Per gli Organizzatori
-- **Dashboard completa** per gestione eventi
-- **Statistiche dettagliate** per età, sesso, squadre
-- **Export dati** in formato Excel
-- **Import massivo** per iscrizioni di gruppo
-- **Gestione prezzi** con price steps e promozioni
-- **Comunicazioni** di servizio agli iscritti
+### 👥 Sistema Utenti
+- **Registrazione e Login** con sistema di ruoli (Partecipante, Organizzatore, Admin)
+- **Profili utente** completi con gestione documenti
+- **Sistema "Ricordami"** per sessioni persistenti
+- **Upload certificati medici e tessere sportive**
 
-### Funzionalità Avanzate
-- **Codici sconto** e voucher
-- **Gestione squadre** con iscrizioni collettive
-- **File GPX** scaricabili per partecipanti
-- **Risultati e classifiche** post-gara
-- **Sistema recensioni** pubbliche
-- **Add-on acquistabili** (maglie, foto, etc.)
+### 🏆 Gestione Eventi
+- **CRUD completo** per eventi sportivi
+- **Filtri avanzati** per ricerca eventi (sport, località, data, prezzo)
+- **Categorie personalizzabili** per ogni disciplina
+- **Upload immagini** e file GPX per percorsi
+- **Sistema iscrizioni** con pagamenti e ricevute automatiche
+
+### 👫 Sistema Community
+- **Community universale** per tutti gli utenti
+- **Community specifiche** per ogni evento
+- **Post e commenti** con sistema di interazione
+- **Feed in tempo reale** delle attività
+
+### 🤝 Gestione Team
+- **Creazione e gestione team**
+- **Iscrizioni collettive** tramite CSV
+- **Chat team** per comunicazione interna
+- **Gestione richieste** di partecipazione
+
+### 📱 Dashboard Organizzatori
+- **Statistiche eventi** complete
+- **Gestione iscrizioni** e partecipanti
+- **Sistema messaggi** ai membri
+- **Shop integrato** per prodotti evento
+
+### 🛒 Sistema E-commerce
+- **Prodotti personalizzabili** per ogni evento
+- **Gestione ordini** e pagamenti
+- **Dashboard vendite** per organizzatori
+
+## 🛠️ Tecnologie Utilizzate
+
+### Backend
+- **PHP 8+** con pattern MVC
+- **MySQL** per database
+- **PDO** per sicurezza database
+- **Session management** avanzato
+
+### Frontend
+- **HTML5 semantico**
+- **CSS3 moderno** con Grid/Flexbox
+- **JavaScript ES6+** vanilla
+- **Design responsive** mobile-first
+
+### Architettura
+- **MVC Pattern** ben strutturato
+- **Router personalizzato** per URL SEO-friendly
+- **Sistema di template** modulare
+- **Validazione dati** lato server e client
+
+## 📦 Installazione
+
+### Prerequisiti
+- PHP 8.0 o superiore
+- MySQL 5.7 o superiore
+- Server web (Apache/Nginx) o PHP built-in server
+
+### Setup Rapido
+
+1. **Clona il repository**
+   ```bash
+   git clone [url-repository]
+   cd sportevents
+   ```
+
+2. **Configura il database**
+   ```bash
+   # Crea il database MySQL
+   mysql -u root -p -e "CREATE DATABASE eventi_sportivi_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   
+   # Importa lo schema
+   mysql -u root -p eventi_sportivi_db < database/schema.sql
+   ```
+
+3. **Configura l'applicazione**
+   ```bash
+   # Copia il file di configurazione
+   cp config/config.example.php config/config.php
+   
+   # Modifica le credenziali database in config/config.php
+   ```
+
+4. **Avvia il server**
+   ```bash
+   php -S localhost:8001 -t public/
+   ```
+
+5. **Accedi all'applicazione**
+   - Apri http://localhost:8001
+   - Usa gli account demo o registra nuovi utenti
+
+## 🔧 Configurazione
+
+### Database
+Modifica `config/config.php`:
+```php
+'database' => [
+    'host' => 'localhost',
+    'database' => 'eventi_sportivi_db',
+    'username' => 'your_username',
+    'password' => 'your_password'
+]
+```
+
+### Upload Files
+- **Certificati**: `uploads/certificates/`
+- **Tessere**: `uploads/cards/`
+- **Immagini eventi**: `uploads/events/`
+- **File GPX**: `uploads/gpx/`
+
+## 👤 Account Demo
+
+Per testare rapidamente tutte le funzionalità:
+
+```
+Organizzatore:
+Email: organizer@example.com
+Password: password123
+
+Partecipante:
+Email: participant@example.com  
+Password: password123
+
+Admin:
+Email: admin@sportevents.com
+Password: password123
+```
+
+## 📁 Struttura Progetto
+
+```
+sportevents/
+├── app/
+│   ├── controllers/     # Controller MVC
+│   ├── models/         # Modelli database
+│   └── views/          # Template HTML
+├── assets/
+│   ├── css/           # Stili CSS
+│   └── js/            # JavaScript
+├── config/            # Configurazioni
+├── database/          # Schema e migrazioni
+├── public/            # Entry point web
+└── uploads/           # File caricati
+```
+
+## 🎯 Roadmap
+
+### Versione 2.0
+- [ ] API REST completa
+- [ ] App mobile React Native
+- [ ] Sistema pagamenti Stripe/PayPal
+- [ ] Notifiche push
+- [ ] Sistema recensioni avanzato
+- [ ] Integrazione social login
+
+### Versione 2.1
+- [ ] Sistema classifiche automatiche
+- [ ] Esportazione dati Excel/PDF
+- [ ] Multi-lingua i18n
+- [ ] Sistema backup automatico
+- [ ] Analytics avanzati
+
+## 🤝 Contribuire
+
+1. Fork del repository
+2. Crea un branch feature (`git checkout -b feature/AmazingFeature`)
+3. Commit delle modifiche (`git commit -m 'Add AmazingFeature'`)
+4. Push del branch (`git push origin feature/AmazingFeature`)
+5. Apri una Pull Request
+
+## 📄 Licenza
+
+Distribuito sotto licenza MIT. Vedi `LICENSE` per maggiori informazioni.
+
+## 🆘 Supporto
+
+- **Issues**: Apri un issue su GitHub
+- **Email**: support@sportevents.com
+- **Wiki**: Consulta la documentazione completa
+
+## 📊 Features Completate
+
+✅ Sistema autenticazione completo  
+✅ Gestione eventi con CRUD  
+✅ Community e social features  
+✅ Sistema team e iscrizioni collettive  
+✅ Upload documenti sicuro  
+✅ Dashboard organizzatori  
+✅ Sistema messaggi e notifiche  
+✅ E-commerce integrato  
+✅ Design responsive moderno  
+✅ SEO-friendly URLs  
+✅ Validazione dati robusta  
+✅ Sistema sessioni sicuro  
+
+---
+
+**Sviluppato con ❤️ per la community sportiva italiana**
 
 ## 🛠️ Tecnologie Utilizzate
 
