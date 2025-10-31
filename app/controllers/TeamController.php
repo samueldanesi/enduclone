@@ -55,9 +55,9 @@ class TeamController {
         
         // Arricchisci dati team
         foreach ($teams as &$team) {
-            $team['members_count'] = $this->getTeamMembersCount($team['id']);
-            $team['is_member'] = $this->isUserMember($_SESSION['user_id'], $team['id']);
-            $team['can_join'] = $this->canUserJoin($_SESSION['user_id'], $team['id']);
+            $team['members_count'] = $this->getTeamMembersCount($team['team_id']);
+            $team['is_member'] = $this->isUserMember($_SESSION['user_id'], $team['team_id']);
+            $team['can_join'] = $this->canUserJoin($_SESSION['user_id'], $team['team_id']);
         }
 
         include '../app/views/teams/index.php';
@@ -115,11 +115,10 @@ class TeamController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = [
                 'nome' => $_POST['nome'] ?? '',
-                'descrizione' => $_POST['descrizione'] ?? '',
-                'categoria' => $_POST['categoria'] ?? '',
-                'livello' => $_POST['livello'] ?? 'intermedio',
-                'max_membri' => $_POST['max_membri'] ?? 10,
-                'creator_id' => $_SESSION['user_id']
+                'descrizione' => $_POST['note'] ?? '', // Le note diventano la descrizione
+                'tipo' => 'public', // Per ora imposta sempre su public
+                'leader_id' => $_SESSION['user_id'],
+                'evento_id' => $_POST['evento_id'] ?? null
             ];
 
             if ($this->team->create($data)) {

@@ -93,7 +93,7 @@
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST" action="/events/<?= $event_data['event_id'] ?>/register" class="space-y-6" <?= isset($already_registered) && $already_registered ? 'style="display: none;"' : '' ?>>
+                    <form id="registration-form" method="POST" action="/events/<?= $event_data['event_id'] ?>/register" class="space-y-6" <?= isset($already_registered) && $already_registered ? 'style="display: none;"' : '' ?>>
                         <!-- Dati Partecipante -->
                         <div>
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Dati Partecipante</h3>
@@ -182,7 +182,7 @@
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Metodo di Pagamento</h3>
                             <div class="space-y-3">
                                 <label class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="metodo_pagamento" value="card" class="mr-3" id="payment-card" checked>
+                                    <input type="radio" name="metodo_pagamento" value="carta" class="mr-3" id="payment-card" checked>
                                     <div class="flex items-center">
                                         <div class="w-8 h-8 bg-blue-100 rounded flex items-center justify-center mr-3">
                                             💳
@@ -277,7 +277,7 @@
 
                         <!-- Submit -->
                         <div class="flex gap-4">
-                            <button type="submit" 
+                            <button id="submit-button" type="submit" 
                                     class="flex-1 bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors">
                                 Completa Iscrizione - €<?= number_format($event_data['prezzo_base'], 2) ?>
                             </button>
@@ -304,17 +304,39 @@
                             🏃‍♂️
                         </div>
                     <?php endif; ?>
+                    <!-- Modal Pagamento Simulato -->
+                    <div id="payment-modal" class="hidden fixed inset-0 z-50 items-center justify-center">
+                        <div class="absolute inset-0 bg-black/40"></div>
+                        <div class="relative bg-white w-full max-w-md mx-auto rounded-xl shadow-xl border border-gray-200 p-6">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">💳</div>
+                                <h3 class="text-xl font-semibold text-gray-900">Elaborazione pagamento</h3>
+                            </div>
+                            <p id="payment-modal-text" class="text-gray-600 text-sm mb-4">Stiamo processando il tuo pagamento in modo sicuro...</p>
+                            <div class="flex items-center gap-2 text-primary-600">
+                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                <span class="text-sm">Attendere qualche secondo...</span>
+                            </div>
+                        </div>
+                    </div>
                     
                     <h4 class="font-semibold text-gray-900 mb-3"><?= htmlspecialchars($event_data['titolo']) ?></h4>
                     
                     <div class="space-y-3 text-sm">
                         <div class="flex items-center text-gray-600">
+                            const form = document.getElementById('registration-form');
+                            const submitButton = document.getElementById('submit-button');
                             <span class="mr-2">📅</span>
                             <?= date('d/m/Y H:i', strtotime($event_data['data_evento'])) ?>
                         </div>
                         <div class="flex items-center text-gray-600">
                             <span class="mr-2">📍</span>
                             <?= htmlspecialchars($event_data['luogo_partenza']) ?>
+                            const paymentModal = document.getElementById('payment-modal');
+                            const paymentModalText = document.getElementById('payment-modal-text');
                         </div>
                         <div class="flex items-center text-gray-600">
                             <span class="mr-2">🏃</span>
@@ -498,6 +520,11 @@
                 discountAmount.value = discount.discount_amount.toFixed(2);
                 
                 discountRow.classList.remove('hidden');
+
+                // Aggiorna bottone submit
+                if (submitButton) {
+                    submitButton.textContent = `Completa Iscrizione - €${discount.final_amount.toFixed(2)}`;
+                }
             }
 
             // Reset sconto
@@ -518,6 +545,11 @@
                 discountAmount.value = '0';
                 hideDiscountMessage();
                 currentDiscount = null;
+
+                // Ripristina bottone submit
+                if (submitButton) {
+                    submitButton.textContent = `Completa Iscrizione - €${originalPrice.toFixed(2)}`;
+                }
             }
 
             // Mostra messaggio sconto
@@ -576,6 +608,33 @@
 
             // Inizializza lo stato del form
             toggleCardForm();
+
+            // Simula step pagamento prima dell'invio del form
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // Se già in corso, lascia procedere
+                    if (form.dataset.processing === '1') return;
+
+                    e.preventDefault();
+
+                    // Messaggio dinamico in base al metodo scelto
+                    if (paypalRadio.checked) {
+                        paymentModalText.textContent = 'Reindirizzamento a PayPal (simulato) e conferma del pagamento...';
+                    } else {
+                        paymentModalText.textContent = 'Verifica carta e conferma del pagamento...';
+                    }
+
+                    // Mostra modal
+                    paymentModal.classList.remove('hidden');
+                    paymentModal.classList.add('flex');
+
+                    // Simula breve attesa, poi invia il form
+                    setTimeout(() => {
+                        form.dataset.processing = '1';
+                        form.submit();
+                    }, 1500);
+                });
+            }
         });
     </script>
 </body>

@@ -4,24 +4,39 @@ class Category {
     private $conn;
     private $table = 'categories';
 
-    public $categoria_id;
-    public $nome_categoria;
+    public $id;
+    public $nome;
     public $descrizione;
-    public $icona;
-    public $colore;
     public $attiva;
-    public $data_creazione;
+    public $created_at;
 
     public function __construct($db) {
         $this->conn = $db;
     }
 
+    private function tableExists($table) {
+        try {
+            $stmt = $this->conn->prepare("SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :t");
+            $stmt->bindValue(':t', $table);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($row['cnt'] ?? 0) > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
     // Ottieni tutte le categorie attive
     public function getAllActive() {
-        $query = "SELECT categoria_id, nome_categoria, descrizione, icona, colore 
+        if (!$this->tableExists($this->table)) {
+            // Nessuna tabella: restituisci un array vuoto per permettere fallback nella vista
+            return null;
+        }
+
+        $query = "SELECT id AS categoria_id, nome AS nome_categoria, descrizione 
                   FROM " . $this->table . " 
                   WHERE attiva = 1 
-                  ORDER BY nome_categoria";
+                  ORDER BY nome";
 
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
@@ -31,9 +46,12 @@ class Category {
 
     // Ottieni categoria per ID
     public function readOne($id) {
-        $query = "SELECT categoria_id, nome_categoria, descrizione, icona, colore 
+        if (!$this->tableExists($this->table)) {
+            return false;
+        }
+        $query = "SELECT id, nome, descrizione 
                   FROM " . $this->table . " 
-                  WHERE categoria_id = :id AND attiva = 1";
+                  WHERE id = :id AND attiva = 1";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $id);
@@ -42,11 +60,9 @@ class Category {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($row) {
-            $this->categoria_id = $row['categoria_id'];
-            $this->nome_categoria = $row['nome_categoria'];
+            $this->id = $row['id'];
+            $this->nome = $row['nome'];
             $this->descrizione = $row['descrizione'];
-            $this->icona = $row['icona'];
-            $this->colore = $row['colore'];
             return true;
         }
 
@@ -55,27 +71,26 @@ class Category {
 
     // Crea nuova categoria
     public function create() {
+        if (!$this->tableExists($this->table)) {
+            return false;
+        }
         $query = "INSERT INTO " . $this->table . " 
-                  (nome_categoria, descrizione, icona, colore, attiva) 
-                  VALUES (:nome_categoria, :descrizione, :icona, :colore, :attiva)";
+                  (nome, descrizione, attiva) 
+                  VALUES (:nome, :descrizione, :attiva)";
 
         $stmt = $this->conn->prepare($query);
 
         // Sanitizza i dati
-        $this->nome_categoria = htmlspecialchars(strip_tags($this->nome_categoria));
+    $this->nome = htmlspecialchars(strip_tags($this->nome));
         $this->descrizione = htmlspecialchars(strip_tags($this->descrizione));
-        $this->icona = htmlspecialchars(strip_tags($this->icona));
-        $this->colore = htmlspecialchars(strip_tags($this->colore));
 
         // Binding parametri
-        $stmt->bindParam(':nome_categoria', $this->nome_categoria);
+    $stmt->bindParam(':nome', $this->nome);
         $stmt->bindParam(':descrizione', $this->descrizione);
-        $stmt->bindParam(':icona', $this->icona);
-        $stmt->bindParam(':colore', $this->colore);
         $stmt->bindParam(':attiva', $this->attiva);
 
         if ($stmt->execute()) {
-            $this->categoria_id = $this->conn->lastInsertId();
+            $this->id = $this->conn->lastInsertId();
             return true;
         }
 

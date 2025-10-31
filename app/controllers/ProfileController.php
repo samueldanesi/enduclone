@@ -233,6 +233,8 @@ class ProfileController {
 
         if (empty($data['sesso'])) {
             $errors[] = 'Il sesso è obbligatorio';
+        } elseif (!in_array($data['sesso'], ['M','F'])) {
+            $errors[] = 'Valore sesso non valido';
         }
 
         return $errors;

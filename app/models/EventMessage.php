@@ -5,6 +5,7 @@
 class EventMessage {
     private $conn;
     private $table = 'event_messages';
+    private $col = null; // mappa colonne dinamica
 
     public $id;
     public $event_id;
@@ -19,10 +20,65 @@ class EventMessage {
         $this->conn = $db;
     }
 
+    private function resolveColumns() {
+        if ($this->col !== null) return;
+        $this->col = [
+            'events_id' => 'id',
+            'events_org' => 'organizer_id',
+            'em_event' => 'event_id',
+            'users_id' => 'id',
+            'reg_event' => 'event_id',
+            'reg_user' => 'user_id',
+            'reg_status' => 'status',
+            'reg_id' => 'id',
+            'notifications_table' => 'notifications'
+        ];
+
+        // events
+        if ($this->columnExists('events','event_id')) $this->col['events_id'] = 'event_id';
+        if ($this->columnExists('events','organizzatore_id')) $this->col['events_org'] = 'organizzatore_id';
+        // event_messages
+        if ($this->columnExists('event_messages','evento_id')) $this->col['em_event'] = 'evento_id';
+        // users
+        if ($this->columnExists('users','user_id')) $this->col['users_id'] = 'user_id';
+        // registrations
+        if ($this->columnExists('registrations','registration_id')) $this->col['reg_id'] = 'registration_id';
+        if ($this->columnExists('registrations','evento_id')) $this->col['reg_event'] = 'evento_id';
+        if ($this->columnExists('registrations','utente_id')) $this->col['reg_user'] = 'utente_id';
+        if ($this->columnExists('registrations','stato')) $this->col['reg_status'] = 'stato';
+        // notifications table fallback
+        if (!$this->tableExists('notifications') && $this->tableExists('user_notifications')) {
+            $this->col['notifications_table'] = 'user_notifications';
+        }
+    }
+
+    private function tableExists($table) {
+        try {
+            $stmt = $this->conn->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :t LIMIT 1");
+            $stmt->bindValue(':t', $table);
+            $stmt->execute();
+            return (bool)$stmt->fetchColumn();
+        } catch (Exception $e) { return false; }
+    }
+
+    private function columnExists($table, $column) {
+        try {
+            $sql = "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :tbl AND column_name = :col";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':tbl', $table);
+            $stmt->bindValue(':col', $column);
+            $stmt->execute();
+            return ((int)$stmt->fetchColumn()) > 0;
+        } catch (Exception $e) { return false; }
+    }
+
     // Crea nuovo messaggio
     public function create() {
+        $this->resolveColumns();
+        $emEvent = $this->col['em_event'];
+        $orgCol = $this->columnExists($this->table, 'organizzatore_id') ? 'organizzatore_id' : 'organizer_id';
         $query = "INSERT INTO " . $this->table . " 
-                 (event_id, organizer_id, title, message, sent_at) 
+                 (`$emEvent`, `$orgCol`, title, message, sent_at) 
                  VALUES (:event_id, :organizer_id, :title, :message, NOW())";
 
         $stmt = $this->conn->prepare($query);
@@ -45,11 +101,17 @@ class EventMessage {
             $this->conn->beginTransaction();
 
             // Ottieni tutti gli iscritti confermati dell'evento
-            $participants_query = "SELECT r.registration_id, r.user_id, u.email, u.nome, u.cognome
+            $this->resolveColumns();
+            $regId = $this->col['reg_id'];
+            $regEvent = $this->col['reg_event'];
+            $regUser = $this->col['reg_user'];
+            $regStatus = $this->col['reg_status'];
+            $userId = $this->col['users_id'];
+            $statusCond = $regStatus ? " AND r.`$regStatus` IN ('confermata','confirmed')" : '';
+            $participants_query = "SELECT r.`$regId` AS registration_id, r.`$regUser` AS user_id, u.email, u.nome, u.cognome
                                   FROM registrations r
-                                  JOIN users u ON r.user_id = u.user_id
-                                  WHERE r.event_id = :event_id 
-                                  AND r.stato = 'confermata'
+                                  JOIN users u ON r.`$regUser` = u.`$userId`
+                                  WHERE r.`$regEvent` = :event_id" . $statusCond . "
                                   ORDER BY u.nome, u.cognome";
             
             $participants_stmt = $this->conn->prepare($participants_query);
@@ -80,7 +142,8 @@ class EventMessage {
             $recipient_stmt = $this->conn->prepare($recipient_query);
             
             // Crea anche notifiche interne per i partecipanti
-            $notification_query = "INSERT INTO user_notifications 
+            $notificationsTable = $this->col['notifications_table'];
+            $notification_query = "INSERT INTO `$notificationsTable` 
                                   (user_id, message_id, event_id, subject, message) 
                                   VALUES (:user_id, :message_id, :event_id, :subject, :message)";
             
@@ -140,12 +203,15 @@ class EventMessage {
 
     // Ottieni messaggi di un evento
     public function getEventMessages($event_id) {
+        $this->resolveColumns();
+        $emEvent = $this->col['em_event'];
+        $userId = $this->col['users_id'];
         $query = "SELECT em.*, u.nome as organizer_name, u.cognome as organizer_surname,
                         (SELECT COUNT(*) FROM message_recipients mr WHERE mr.message_id = em.id AND mr.delivery_status = 'sent') as sent_count,
                         (SELECT COUNT(*) FROM message_recipients mr WHERE mr.message_id = em.id AND mr.delivery_status = 'failed') as failed_count
                  FROM " . $this->table . " em
-                 LEFT JOIN users u ON em.organizer_id = u.user_id
-                 WHERE em.event_id = :event_id
+                 LEFT JOIN users u ON em.organizer_id = u.`$userId`
+                 WHERE em.`$emEvent` = :event_id
                  ORDER BY em.created_at DESC";
 
         $stmt = $this->conn->prepare($query);
@@ -190,7 +256,9 @@ class EventMessage {
     // Simula invio email (in produzione integrare con servizio email reale)
     private function sendEmail($participant, $subject, $message, $event_id) {
         // Ottieni dettagli evento
-        $event_query = "SELECT id, titolo, data_evento, luogo_partenza FROM events WHERE id = :event_id";
+    $this->resolveColumns();
+    $evId = $this->col['events_id'];
+    $event_query = "SELECT `$evId` AS id, titolo, data_evento, luogo_partenza FROM events WHERE `$evId` = :event_id";
         $event_stmt = $this->conn->prepare($event_query);
         $event_stmt->bindParam(':event_id', $event_id);
         $event_stmt->execute();
@@ -251,7 +319,7 @@ class EventMessage {
                     </div>
                     
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="http://localhost:8080/events/' . $event['id'] . '" class="button">
+                        <a href="' . (defined('BASE_URL') ? BASE_URL : '') . '/events/' . $event['id'] . '" class="button">
                             Visualizza Evento
                         </a>
                     </div>
@@ -297,8 +365,11 @@ class EventMessage {
 
     // Verifica se l'organizzatore può inviare messaggi per questo evento
     public function canSendMessage($organizer_id, $event_id) {
+        $this->resolveColumns();
+        $evId = $this->col['events_id'];
+        $evOrg = $this->col['events_org'];
         $query = "SELECT COUNT(*) as count FROM events 
-                 WHERE event_id = :event_id AND organizer_id = :organizer_id";
+                 WHERE `$evId` = :event_id AND `$evOrg` = :organizer_id";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -323,12 +394,16 @@ class EventMessage {
 
     // Ottieni messaggi per organizzatore
     public function getMessagesByOrganizer($organizer_id) {
-        $query = "SELECT em.*, e.titolo as evento_nome,
+    $this->resolveColumns();
+    $emEvent = $this->col['em_event'];
+    $evId = $this->col['events_id'];
+    $regEvent = $this->col['reg_event'];
+    $query = "SELECT em.*, e.titolo as evento_nome,
                          COUNT(DISTINCT r.user_id) as destinatari_count,
                          COUNT(DISTINCT mr.user_id) as visualizzazioni
                  FROM " . $this->table . " em
-                 LEFT JOIN events e ON em.evento_id = e.event_id
-                 LEFT JOIN registrations r ON e.event_id = r.event_id
+         LEFT JOIN events e ON em.`$emEvent` = e.`$evId`
+         LEFT JOIN registrations r ON e.`$evId` = r.`$regEvent`
                  LEFT JOIN message_reads mr ON em.id = mr.message_id
                  WHERE em.organizer_id = :organizer_id
                  GROUP BY em.id
@@ -343,15 +418,20 @@ class EventMessage {
 
     // Ottieni messaggi per partecipante
     public function getMessagesForParticipant($user_id) {
-        $query = "SELECT DISTINCT em.*, e.titolo as evento_nome,
+    $this->resolveColumns();
+    $userId = $this->col['users_id'];
+    $emEvent = $this->col['em_event'];
+    $evId = $this->col['events_id'];
+    $regEvent = $this->col['reg_event'];
+    $query = "SELECT DISTINCT em.*, e.titolo as evento_nome,
                          u.nome as organizer_nome, u.cognome as organizer_cognome,
                          mr.read_at as letto_il
                  FROM " . $this->table . " em
-                 LEFT JOIN events e ON em.evento_id = e.event_id
-                 LEFT JOIN registrations r ON e.event_id = r.event_id
-                 LEFT JOIN users u ON em.organizer_id = u.user_id
+         LEFT JOIN events e ON em.`$emEvent` = e.`$evId`
+         LEFT JOIN registrations r ON e.`$evId` = r.`$regEvent`
+         LEFT JOIN users u ON em.organizer_id = u.`$userId`
                  LEFT JOIN message_reads mr ON em.id = mr.message_id AND mr.user_id = :user_id
-                 WHERE r.user_id = :user_id2
+         WHERE r.`$userId` = :user_id2
                  ORDER BY em.created_at DESC";
 
         $stmt = $this->conn->prepare($query);

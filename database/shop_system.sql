@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS product_orders (
     data_ordine TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (prodotto_id) REFERENCES event_products(id) ON DELETE CASCADE,
-    FOREIGN KEY (evento_id) REFERENCES events(event_id) ON DELETE CASCADE,
-    FOREIGN KEY (organizer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (evento_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (organizer_id) REFERENCES users(id) ON DELETE CASCADE,
     
     INDEX idx_user (user_id),
     INDEX idx_prodotto (prodotto_id),
@@ -107,7 +107,8 @@ SELECT
     e.id,
     e.organizer_id
 FROM events e 
-WHERE e.id IN (SELECT id FROM events LIMIT 3);
+ORDER BY e.id 
+LIMIT 3;
 
 INSERT INTO event_products (nome, descrizione, categoria, prezzo, quantita_disponibile, evento_id, organizer_id) 
 SELECT 
@@ -119,7 +120,8 @@ SELECT
     e.id,
     e.organizer_id
 FROM events e 
-WHERE e.id IN (SELECT id FROM events LIMIT 2);
+ORDER BY e.id 
+LIMIT 2;
 
 INSERT INTO event_products (nome, descrizione, categoria, prezzo, quantita_disponibile, evento_id, organizer_id) 
 SELECT 
@@ -131,7 +133,8 @@ SELECT
     e.id,
     e.organizer_id
 FROM events e 
-WHERE e.id IN (SELECT id FROM events LIMIT 1);
+ORDER BY e.id 
+LIMIT 1;
 
 INSERT INTO event_products (nome, descrizione, categoria, prezzo, quantita_disponibile, evento_id, organizer_id) 
 SELECT 
@@ -143,7 +146,8 @@ SELECT
     e.id,
     e.organizer_id
 FROM events e 
-WHERE e.id IN (SELECT id FROM events LIMIT 2);
+ORDER BY e.id 
+LIMIT 2;
 
 INSERT INTO event_products (nome, descrizione, categoria, prezzo, quantita_disponibile, evento_id, organizer_id) 
 SELECT 
@@ -155,7 +159,8 @@ SELECT
     e.id,
     e.organizer_id
 FROM events e 
-WHERE e.id IN (SELECT id FROM events LIMIT 3);
+ORDER BY e.id 
+LIMIT 3;
 
 -- Statistiche e viste utili
 CREATE OR REPLACE VIEW shop_statistics AS

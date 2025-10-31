@@ -16,6 +16,37 @@ class EventController {
         $this->event = new Event($this->db);
         $this->category = new Category($this->db);
     }
+    
+    // Helper per rilevare nome colonna corretto nello schema
+    private function detectColumn($table, $candidates) {
+        static $cache = [];
+        $cacheKey = $table . '_' . implode('_', $candidates);
+        
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+        
+        try {
+            $stmt = $this->db->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS 
+                                        WHERE TABLE_SCHEMA = DATABASE() 
+                                        AND TABLE_NAME = ? 
+                                        AND COLUMN_NAME IN (" . implode(',', array_fill(0, count($candidates), '?')) . ")");
+            $params = array_merge([$table], $candidates);
+            $stmt->execute($params);
+            $found = $stmt->fetchColumn();
+            
+            if ($found) {
+                $cache[$cacheKey] = $found;
+                return $found;
+            }
+            
+            // Default al primo candidato
+            $cache[$cacheKey] = $candidates[0];
+            return $candidates[0];
+        } catch (Exception $e) {
+            return $candidates[0];
+        }
+    }
 
     // Mostra tutti gli eventi (homepage)
     public function index() {
@@ -54,23 +85,63 @@ class EventController {
         $sort = $_GET['sort'] ?? 'date';
         $filters['sort'] = $sort;
 
-        $stmt = $this->event->readAll($filters);
-        $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Aggiorna il conto degli iscritti per ogni evento
-        foreach ($events as &$event) {
-            $query = "SELECT COUNT(*) as registrations_count FROM registrations WHERE event_id = ? AND stato = 'confermata'";
-            $countStmt = $this->db->prepare($query);
-            $countStmt->execute([$event['event_id']]);
-            $count = $countStmt->fetch(PDO::FETCH_ASSOC);
-            $event['registrations_count'] = $count['registrations_count'] ?? 0;
+        try {
+            $stmt = $this->event->readAll($filters);
+            $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $ex) {
+            // Fallback di emergenza se readAll fallisce
+            if (defined('DEBUG_MODE') && DEBUG_MODE) {
+                @error_log('[ERROR] EventController::index readAll failed: ' . $ex->getMessage());
+            }
             
-            // Aggiungi nome organizzatore
-            $orgQuery = "SELECT nome, cognome FROM users WHERE user_id = ?";
-            $orgStmt = $this->db->prepare($orgQuery);
-            $orgStmt->execute([$event['organizer_id']]);
-            $organizer = $orgStmt->fetch(PDO::FETCH_ASSOC);
-            $event['organizer_name'] = ($organizer ? $organizer['nome'] . ' ' . $organizer['cognome'] : 'Organizzatore');
+            // Rileva schema delle colonne
+            $evOrg = $this->detectColumn('events', ['organizer_id', 'organizzatore_id']);
+            $evCap = $this->detectColumn('events', ['max_partecipanti', 'capienza_massima']);
+            $evDist = $this->detectColumn('events', ['distanza_km', 'lunghezza_km']);
+            $evCat = $this->detectColumn('events', ['categoria_id', 'categoria']);
+            $evPrice = $this->detectColumn('events', ['prezzo_base', 'prezzo']);
+            $evPlace = $this->detectColumn('events', ['luogo_partenza', 'luogo']);
+            
+            // Query fallback schema-aware
+            $fallbackSql = "SELECT 
+                    id AS event_id,
+                    `{$evOrg}` AS organizer_id,
+                    titolo,
+                    descrizione,
+                    data_evento,
+                    `{$evPlace}` AS luogo_partenza,
+                    " . ($evCat ? "`{$evCat}` AS categoria_id," : "NULL AS categoria_id,") . "
+                    `{$evPrice}` AS prezzo_base,
+                    `{$evCap}` AS max_partecipanti,
+                    " . ($evDist ? "`{$evDist}` AS distanza_km," : "NULL AS distanza_km,") . "
+                    immagine
+                FROM events
+                WHERE data_evento >= NOW()
+                ORDER BY data_evento ASC";
+            $stmt = $this->db->prepare($fallbackSql);
+            $stmt->execute();
+            $events = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+        
+        // Completa dati mancanti (organizer_name) se non già presenti
+        foreach ($events as &$event) {
+            if (empty($event['organizer_name'])) {
+                $orgQuery = "SELECT nome, cognome FROM users WHERE id = ?";
+                $orgStmt = $this->db->prepare($orgQuery);
+                $orgStmt->execute([$event['organizer_id']]);
+                $organizer = $orgStmt->fetch(PDO::FETCH_ASSOC);
+                $event['organizer_name'] = ($organizer ? $organizer['nome'] . ' ' . $organizer['cognome'] : 'Organizzatore');
+            }
+        }
+
+        // Calcola registrations_count per ogni evento (se non già incluso dal model)
+        foreach ($events as &$ev) {
+            if (!isset($ev['registrations_count'])) {
+                $stmtC = $this->db->prepare("SELECT COUNT(*) AS c FROM registrations WHERE event_id = ? AND status IN ('confermata','confirmed')");
+                $stmtC->execute([$ev['event_id'] ?? $ev['id'] ?? null]);
+                $rowC = $stmtC->fetch(PDO::FETCH_ASSOC) ?: ['c' => 0];
+                $ev['registrations_count'] = (int)$rowC['c'];
+            }
         }
 
         // Carica vista
@@ -111,9 +182,19 @@ class EventController {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->store();
         } else {
-            // Carica le categorie per il form
-            $categories_stmt = $this->category->getAllActive();
-            $categories = $categories_stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Carica le categorie per il form con fallback se la tabella non esiste
+            $categories = [];
+            try {
+                $categories_stmt = $this->category->getAllActive();
+                if ($categories_stmt) {
+                    $categories = $categories_stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                }
+            } catch (Throwable $catEx) {
+                if (defined('DEBUG_MODE') && DEBUG_MODE) {
+                    @error_log('[WARN] Category list unavailable: ' . $catEx->getMessage());
+                }
+                // Lascia $categories vuoto: la vista mostrerà le opzioni di default
+            }
             
             include __DIR__ . '/../views/organizer/create.php';
         }
@@ -137,9 +218,9 @@ class EventController {
             $this->event->max_partecipanti = (int)($_POST['max_partecipanti'] ?? $_POST['capienza_massima'] ?? 100);
             $this->event->distanza_km = !empty($_POST['distanza_km']) ? (float)$_POST['distanza_km'] : (!empty($_POST['lunghezza_km']) ? (float)$_POST['lunghezza_km'] : null);
             // Mappa status a valori ENUM validi
-            $status_input = $_POST['status'] ?? 'bozza';
+            $status_input = $_POST['status'] ?? 'pubblicato';
             $valid_stati = ['bozza', 'pubblicato', 'chiuso', 'annullato'];
-            $this->event->status = in_array($status_input, $valid_stati) ? $status_input : 'bozza';
+            $this->event->status = in_array($status_input, $valid_stati) ? $status_input : 'pubblicato';
 
             if ($this->event->create()) {
                 // Upload immagine se presente

@@ -27,12 +27,14 @@ class ProductOrder {
 
     // Crea nuovo ordine
     public function create() {
+        // Nota: lo schema corrente non prevede colonne taglia/colore obbligatorie
+        // e usa data_ordine come timestamp di creazione (default CURRENT_TIMESTAMP).
         $query = "INSERT INTO " . $this->table . "
                  SET user_id=:user_id, prodotto_id=:prodotto_id, evento_id=:evento_id,
-                     quantita=:quantita, taglia=:taglia, colore=:colore,
+                     quantita=:quantita,
                      prezzo_unitario=:prezzo_unitario, totale=:totale,
                      status=:status, note_ordine=:note_ordine, 
-                     indirizzo_spedizione=:indirizzo_spedizione, created_at=NOW()";
+                     indirizzo_spedizione=:indirizzo_spedizione";
 
         $stmt = $this->conn->prepare($query);
 
@@ -40,8 +42,6 @@ class ProductOrder {
         $stmt->bindParam(':prodotto_id', $this->prodotto_id);
         $stmt->bindParam(':evento_id', $this->evento_id);
         $stmt->bindParam(':quantita', $this->quantita);
-        $stmt->bindParam(':taglia', $this->taglia);
-        $stmt->bindParam(':colore', $this->colore);
         $stmt->bindParam(':prezzo_unitario', $this->prezzo_unitario);
         $stmt->bindParam(':totale', $this->totale);
         $stmt->bindParam(':status', $this->status);
@@ -57,15 +57,15 @@ class ProductOrder {
 
     // Ottieni ordini utente
     public function getUserOrders($user_id) {
-        $query = "SELECT o.*, p.nome as prodotto_nome, p.immagine,
-                         e.titolo as evento_nome, e.data_evento,
-                         u.nome as organizer_nome, u.cognome as organizer_cognome
-                 FROM " . $this->table . " o
-                 LEFT JOIN event_products p ON o.prodotto_id = p.id
-                 LEFT JOIN events e ON o.evento_id = e.event_id
-                 LEFT JOIN users u ON p.organizer_id = u.user_id
-                 WHERE o.user_id = :user_id
-                 ORDER BY o.data_ordine DESC";
+    $query = "SELECT o.*, p.nome as prodotto_nome, p.immagine,
+             e.titolo as evento_nome, e.data_evento,
+             u.nome as organizer_nome, u.cognome as organizer_cognome
+         FROM " . $this->table . " o
+         LEFT JOIN event_products p ON o.prodotto_id = p.id
+         LEFT JOIN events e ON o.evento_id = e.id
+         LEFT JOIN users u ON p.organizer_id = u.id
+         WHERE o.user_id = :user_id
+         ORDER BY o.data_ordine DESC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -75,15 +75,15 @@ class ProductOrder {
 
     // Ottieni ordini organizzatore
     public function getOrganizerOrders($organizer_id) {
-        $query = "SELECT o.*, p.nome as prodotto_nome,
-                         e.titolo as evento_nome,
-                         u.nome as cliente_nome, u.cognome as cliente_cognome, u.email as cliente_email
-                 FROM " . $this->table . " o
-                 LEFT JOIN event_products p ON o.prodotto_id = p.id
-                 LEFT JOIN events e ON o.evento_id = e.event_id
-                 LEFT JOIN users u ON o.user_id = u.user_id
-                 WHERE p.organizer_id = :organizer_id
-                 ORDER BY o.data_ordine DESC";
+    $query = "SELECT o.*, p.nome as prodotto_nome,
+             e.titolo as evento_nome,
+             u.nome as cliente_nome, u.cognome as cliente_cognome, u.email as cliente_email
+         FROM " . $this->table . " o
+         LEFT JOIN event_products p ON o.prodotto_id = p.id
+         LEFT JOIN events e ON o.evento_id = e.id
+         LEFT JOIN users u ON o.user_id = u.id
+         WHERE p.organizer_id = :organizer_id
+         ORDER BY o.data_ordine DESC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':organizer_id', $organizer_id);
@@ -106,15 +106,15 @@ class ProductOrder {
 
     // Leggi singolo ordine
     public function readOne() {
-        $query = "SELECT o.*, p.nome as prodotto_nome, p.immagine, p.descrizione,
-                         e.titolo as evento_nome, e.data_evento, e.luogo_partenza,
-                         u.nome as organizer_nome, u.cognome as organizer_cognome,
-                         u.email as organizer_email
-                 FROM " . $this->table . " o
-                 LEFT JOIN event_products p ON o.prodotto_id = p.id
-                 LEFT JOIN events e ON o.evento_id = e.event_id
-                 LEFT JOIN users u ON p.organizer_id = u.user_id
-                 WHERE o.id = :id";
+    $query = "SELECT o.*, p.nome as prodotto_nome, p.immagine, p.descrizione,
+             e.titolo as evento_nome, e.data_evento, e.luogo_partenza,
+             u.nome as organizer_nome, u.cognome as organizer_cognome,
+             u.email as organizer_email
+         FROM " . $this->table . " o
+         LEFT JOIN event_products p ON o.prodotto_id = p.id
+         LEFT JOIN events e ON o.evento_id = e.id
+         LEFT JOIN users u ON p.organizer_id = u.id
+         WHERE o.id = :id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $this->id);

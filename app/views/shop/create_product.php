@@ -15,425 +15,379 @@ require_once __DIR__ . '/../components/navbar.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crea Nuovo Prodotto - SportEvents</title>
     <link rel="stylesheet" href="/assets/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="glass-theme">
-    <div class="page-wrapper">
-        <?php renderNavbar('shop'); ?>
-        
-        <main class="main-content">
-            <div class="container">
-                <div class="glass-card">
-                    <div class="card-header">
-                        <h1 class="section-title">
-                            <span class="icon">🛍️</span>
-                            Crea Nuovo Prodotto
-                        </h1>
-                        <p class="section-subtitle">Aggiungi un nuovo prodotto al tuo negozio</p>
-                    </div>
-
-                    <form class="product-form" action="/shop/store" method="POST" enctype="multipart/form-data">
-                        <div class="form-grid">
-                            <!-- Informazioni di base -->
-                            <div class="form-section">
-                                <h3 class="form-section-title">Informazioni Prodotto</h3>
-                                
-                                <div class="form-group">
-                                    <label for="nome">Nome Prodotto*</label>
-                                    <input type="text" id="nome" name="nome" required 
-                                           placeholder="Es: Maglia Tecnica Marathon 2025">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="descrizione">Descrizione*</label>
-                                    <textarea id="descrizione" name="descrizione" rows="4" required 
-                                              placeholder="Descrivi il prodotto, materiali, caratteristiche..."></textarea>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="prezzo">Prezzo (€)*</label>
-                                        <input type="number" id="prezzo" name="prezzo" step="0.01" min="0" required 
-                                               placeholder="25.00">
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="categoria">Categoria*</label>
-                                        <select id="categoria" name="categoria" required>
-                                            <option value="">Seleziona categoria</option>
-                                            <option value="abbigliamento">Abbigliamento</option>
-                                            <option value="accessori">Accessori</option>
-                                            <option value="pacchi_gara">Pacchi Gara</option>
-                                            <option value="foto_video">Foto & Video</option>
-                                            <option value="donazioni">Donazioni</option>
-                                            <option value="altro">Altro</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Evento associato -->
-                            <div class="form-section">
-                                <h3 class="form-section-title">Evento Associato</h3>
-                                
-                                <div class="form-group">
-                                    <label for="evento_id">Seleziona Evento*</label>
-                                    <select id="evento_id" name="evento_id" required>
-                                        <option value="">Seleziona un evento</option>
-                                        <?php if (isset($eventi) && !empty($eventi)): ?>
-                                            <?php foreach ($eventi as $evento): ?>
-                                                <option value="<?= htmlspecialchars($evento['event_id']) ?>">
-                                                    <?= htmlspecialchars($evento['titolo']) ?> - <?= date('d/m/Y', strtotime($evento['data_evento'])) ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Inventario -->
-                            <div class="form-section">
-                                <h3 class="form-section-title">Gestione Inventario</h3>
-                                
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="quantita_disponibile">Quantità Disponibile*</label>
-                                        <input type="number" id="quantita_disponibile" name="quantita_disponibile" 
-                                               min="1" required placeholder="100">
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="gestione_taglie">
-                                            <input type="checkbox" id="gestione_taglie" name="gestione_taglie" value="1">
-                                            Gestisci taglie
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div id="taglie-section" class="form-group" style="display: none;">
-                                    <label>Taglie Disponibili</label>
-                                    <div class="taglie-grid">
-                                        <label><input type="checkbox" name="taglie[]" value="XS"> XS</label>
-                                        <label><input type="checkbox" name="taglie[]" value="S"> S</label>
-                                        <label><input type="checkbox" name="taglie[]" value="M"> M</label>
-                                        <label><input type="checkbox" name="taglie[]" value="L"> L</label>
-                                        <label><input type="checkbox" name="taglie[]" value="XL"> XL</label>
-                                        <label><input type="checkbox" name="taglie[]" value="XXL"> XXL</label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Immagini -->
-                            <div class="form-section">
-                                <h3 class="form-section-title">Immagini Prodotto</h3>
-                                
-                                <div class="form-group">
-                                    <label for="immagini">Carica Immagini</label>
-                                    <input type="file" id="immagini" name="immagini[]" multiple 
-                                           accept="image/jpeg,image/png,image/jpg">
-                                    <small class="form-help">Formato supportati: JPG, PNG. Max 5 immagini.</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-actions">
-                            <a href="/shop/organizer" class="btn btn-secondary">
-                                <span class="icon">←</span>
-                                Annulla
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <span class="icon">✓</span>
-                                Crea Prodotto
-                            </button>
-                        </div>
-                    </form>
-                </div>
+<body>
+    <?php renderNavbar('shop'); ?>
+    
+    <main class="main-content">
+        <div class="container">
+            <div class="page-header">
+                <h1><i class="fas fa-plus-circle"></i> Crea Nuovo Prodotto</h1>
+                <p>Aggiungi un nuovo prodotto al tuo shop</p>
             </div>
-        </main>
-    </div>
 
-    <script>
-        // Gestione taglie
-        document.getElementById('gestione_taglie').addEventListener('change', function() {
-            const taglieSection = document.getElementById('taglie-section');
-            taglieSection.style.display = this.checked ? 'block' : 'none';
-        });
+            <!-- Form con design migliorato -->
+            <form action="/shop/store" method="POST" enctype="multipart/form-data" class="product-form">
+                <!-- Sezione Informazioni Base -->
+                <div class="form-card">
+                    <div class="card-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <h3>Informazioni Prodotto</h3>
+                    
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="nome">
+                                <i class="fas fa-tag"></i> Nome Prodotto*
+                            </label>
+                            <input type="text" id="nome" name="nome" class="form-control" required 
+                                   placeholder="Es: Maglia Running Milano Marathon 2025">
+                        </div>
 
-        // Validazione form
-        document.querySelector('.product-form').addEventListener('submit', function(e) {
-            const prezzo = document.getElementById('prezzo').value;
-            const quantita = document.getElementById('quantita_disponibile').value;
-            
-            if (parseFloat(prezzo) <= 0) {
-                alert('Il prezzo deve essere maggiore di 0');
-                e.preventDefault();
-                return;
-            }
-            
-            if (parseInt(quantita) <= 0) {
-                alert('La quantità deve essere maggiore di 0');
-                e.preventDefault();
-                return;
-            }
-        });
-    </script>
+                        <div class="form-group full-width">
+                            <label for="descrizione">
+                                <i class="fas fa-align-left"></i> Descrizione*
+                            </label>
+                            <textarea id="descrizione" name="descrizione" rows="3" class="form-control" required 
+                                      placeholder="Descrivi il prodotto, materiali, caratteristiche speciali..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="prezzo">
+                                <i class="fas fa-euro-sign"></i> Prezzo*
+                            </label>
+                            <input type="number" id="prezzo" name="prezzo" step="0.01" min="0" class="form-control" required 
+                                   placeholder="25.00">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="categoria">
+                                <i class="fas fa-layer-group"></i> Categoria*
+                            </label>
+                            <select id="categoria" name="categoria" class="form-control" required>
+                                <option value="">🏷️ Seleziona categoria</option>
+                                <option value="abbigliamento">👕 Abbigliamento</option>
+                                <option value="accessori">🎒 Accessori</option>
+                                <option value="pacchi_gara">📦 Pacchi Gara</option>
+                                <option value="foto_video">📸 Foto & Video</option>
+                                <option value="donazioni">💝 Donazioni</option>
+                                <option value="altro">🔧 Altro</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quantita">
+                                <i class="fas fa-cubes"></i> Quantità Disponibile*
+                            </label>
+                            <input type="number" id="quantita" name="quantita_disponibile" min="0" class="form-control" required 
+                                   placeholder="100">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="evento_id">
+                                <i class="fas fa-calendar-alt"></i> Evento Associato
+                            </label>
+                            <select id="evento_id" name="evento_id" class="form-control">
+                                <option value="">📅 Seleziona evento (opzionale)</option>
+                                <!-- Gli eventi verranno popolati dinamicamente -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sezione Immagine -->
+                <div class="form-card">
+                    <div class="card-icon">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    <h3>Immagine Prodotto</h3>
+                    
+                    <div class="upload-area">
+                        <input type="file" id="immagine" name="immagine" accept="image/*" class="file-input" hidden>
+                        <label for="immagine" class="upload-label">
+                            <div class="upload-content">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <p class="upload-text">Clicca per caricare l'immagine</p>
+                                <small>JPG, PNG - Max 5MB</small>
+                            </div>
+                        </label>
+                        <div class="image-preview" id="preview" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Azioni -->
+                <div class="form-actions-modern">
+                    <a href="/shop/organizer" class="btn-cancel">
+                        <i class="fas fa-times"></i> Annulla
+                    </a>
+                    <button type="submit" class="btn-create">
+                        <i class="fas fa-plus"></i> Crea Prodotto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
 
     <style>
         .product-form {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
-        }
-
-        .form-grid {
             display: grid;
             gap: 2rem;
-            animation: fadeInUp 0.6s ease-out;
         }
 
-        .form-section {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+        .form-card {
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
             border-radius: 20px;
             padding: 2rem;
-            backdrop-filter: blur(15px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.8);
             position: relative;
             overflow: hidden;
         }
 
-        .form-section::before {
+        .form-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
-            border-radius: 20px 20px 0 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
         }
 
-        .form-section:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .form-section-title {
+        .card-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
             color: white;
-            font-size: 1.3rem;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .form-card h3 {
+            font-size: 1.5rem;
             font-weight: 700;
+            color: #1e293b;
             margin-bottom: 1.5rem;
-            padding-bottom: 0.8rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             display: flex;
             align-items: center;
-            gap: 0.8rem;
+            gap: 0.5rem;
         }
 
-        .form-section-title::before {
-            content: '✨';
-            font-size: 1.2rem;
-        }
-
-        .form-row {
+        .form-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
         }
 
-        .form-group {
-            margin-bottom: 1.5rem;
+        .full-width {
+            grid-column: 1 / -1;
         }
 
         .form-group label {
             display: block;
-            color: rgba(255, 255, 255, 0.9);
             font-weight: 600;
+            color: #374151;
             margin-bottom: 0.5rem;
-            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
+        .form-control {
             width: 100%;
-            padding: 1rem 1.2rem;
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border: 2px solid #e5e7eb;
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
             font-size: 1rem;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            background: white;
         }
 
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
+        .form-control:focus {
             outline: none;
             border-color: #667eea;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
             transform: translateY(-1px);
         }
 
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: rgba(255, 255, 255, 0.5);
-        }
-
-        .taglie-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 0.8rem;
+        .upload-area {
             margin-top: 1rem;
         }
 
-        .taglie-grid label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: white;
-            font-size: 0.9rem;
-            padding: 0.8rem 1rem;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+        .upload-label {
+            display: block;
+            border: 2px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+            background: #f8fafc;
         }
 
-        .taglie-grid label:hover {
+        .upload-label:hover {
             border-color: #667eea;
-            background: rgba(102, 126, 234, 0.1);
-            transform: translateY(-1px);
+            background: #f1f5f9;
+            transform: translateY(-2px);
         }
 
-        .taglie-grid input[type="checkbox"]:checked + span {
-            color: #667eea;
-        }
-
-        .form-help {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 0.85rem;
-            margin-top: 0.5rem;
-        }
-
-        .form-actions {
+        .upload-content {
             display: flex;
-            gap: 1.5rem;
-            justify-content: flex-end;
-            padding-top: 2.5rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: 2.5rem;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .btn {
-            padding: 1rem 2rem;
-            border: none;
-            border-radius: 12px;
+        .upload-icon {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
             font-weight: 600;
+            color: #374151;
+            margin: 0;
+        }
+
+        .image-preview {
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .form-actions-modern {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn-cancel, .btn-create {
+            padding: 1rem 2rem;
+            border-radius: 12px;
             text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            cursor: pointer;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
+            border: none;
+            cursor: pointer;
+            min-width: 150px;
+            justify-content: center;
         }
 
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
+        .btn-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
         }
 
-        .btn:hover::before {
-            left: 100%;
+        .btn-cancel:hover {
+            background: #e2e8f0;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(100, 116, 139, 0.2);
         }
 
-        .btn-primary {
+        .btn-create {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
 
-        .btn-primary:hover {
+        .btn-create:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
 
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .card-header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-
-        .section-title {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-
-        .section-subtitle {
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 1.1rem;
-        }
-
         @media (max-width: 768px) {
-            .form-row {
+            .form-grid {
                 grid-template-columns: 1fr;
             }
             
-            .form-actions {
-                flex-direction: column-reverse;
-            }
-
-            .form-section {
+            .form-card {
                 padding: 1.5rem;
             }
-
-            .section-title {
-                font-size: 2rem;
-            }
-
-            .taglie-grid {
-                grid-template-columns: repeat(3, 1fr);
+            
+            .form-actions-modern {
+                flex-direction: column;
             }
         }
     </style>
+
+    <script>
+        // Preview immagine
+        document.getElementById('immagine').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('preview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Animazioni al caricamento
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.form-card');
+            cards.forEach((card, index) => {
+                setTimeout(() => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(20px)';
+                    card.style.transition = 'all 0.6s ease';
+                    
+                    setTimeout(() => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, 100);
+                }, index * 200);
+            });
+        });
+
+        // Validazione migliorata
+        document.querySelector('.product-form').addEventListener('submit', function(e) {
+            const requiredFields = ['nome', 'descrizione', 'prezzo', 'categoria', 'quantita'];
+            let isValid = true;
+            
+            requiredFields.forEach(fieldName => {
+                const field = document.getElementById(fieldName);
+                if (!field.value.trim()) {
+                    field.style.borderColor = '#ef4444';
+                    isValid = false;
+                    
+                    setTimeout(() => {
+                        field.style.borderColor = '#e5e7eb';
+                    }, 3000);
+                }
+            });
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert('❌ Per favore compila tutti i campi obbligatori');
+            }
+        });
+    </script>
+
+    <script src="/assets/js/app.js"></script>
 </body>
 </html>

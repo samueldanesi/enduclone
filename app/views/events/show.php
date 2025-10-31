@@ -170,7 +170,7 @@
                                     Community Evento
                                 </a>
                             <?php else: ?>
-                                <a href="/events/<?php echo $event['event_id']; ?>/register" class="block w-full bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary-dark transition-colors text-lg text-center">
+                                <a id="register-now-btn" data-event-id="<?php echo $event['event_id']; ?>" href="<?= BASE_URL ?>/events/<?php echo $event['event_id']; ?>/register" class="block w-full bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary-dark transition-colors text-lg text-center">
                                     Iscriviti Ora
                                 </a>
                             <?php endif; ?>
@@ -460,7 +460,27 @@
             console.log('Mobile menu toggled');
         });
 
-        // Registration button functionality is now handled via direct links
+        // Forza la navigazione al form di registrazione anche se altri script interferiscono
+        const APP_BASE_URL = '<?= BASE_URL ?>';
+        (function() {
+            const btn = document.getElementById('register-now-btn');
+            if (btn) {
+                btn.addEventListener('click', function(e) {
+                    // Se l'href manca o il click viene intercettato, esegui un redirect manuale
+                    const id = this.getAttribute('data-event-id');
+                    const expectedHref = `${APP_BASE_URL}/events/${id}/register`;
+                    const currentHref = this.getAttribute('href') || '';
+
+                    // Evita doppi invii
+                    if (this.dataset.navigating === '1') return;
+                    this.dataset.navigating = '1';
+
+                    // Previeni eventuali blocchi e reindirizza in modo affidabile
+                    e.preventDefault();
+                    try { window.location.assign(expectedHref); } catch (err) { window.location.href = expectedHref; }
+                }, { capture: true });
+            }
+        })();
 
         // Share buttons
         document.querySelectorAll('[class*="bg-blue-600"], [class*="bg-sky-500"], [class*="bg-green-600"]').forEach(btn => {

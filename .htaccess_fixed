@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Redirect all requests to public directory
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L,QSA]
+
+# Security
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<FilesMatch "\.(sql|zip|log)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Enable PHP
+AddType application/x-httpd-php .php

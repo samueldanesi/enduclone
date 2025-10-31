@@ -5,6 +5,19 @@
 class AuthController {
     private $db;
     private $user;
+    
+    private function tableExists($table) {
+        try {
+            $sql = "SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :t";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':t', $table);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return ($row['cnt'] ?? 0) > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
 
     public function __construct() {
         $database = new Database();
@@ -46,8 +59,10 @@ class AuthController {
 
             // Registra l'utente
             if ($this->user->register()) {
-                // Upload documenti se presenti
-                $this->handleDocumentUploads();
+                // Upload documenti solo per partecipanti
+                if (($this->user->user_type ?? 'participant') === 'participant') {
+                    $this->handleDocumentUploads();
+                }
 
                 // Imposta sessione
                 $_SESSION['user_id'] = $this->user->id;
@@ -189,7 +204,7 @@ class AuthController {
         // Sesso
         if (empty($data['sesso'])) {
             $errors[] = 'Seleziona il sesso';
-        } elseif (!in_array($data['sesso'], ['M', 'F', 'altro'])) {
+        } elseif (!in_array($data['sesso'], ['M', 'F'])) {
             $errors[] = 'Valore sesso non valido';
         }
 
@@ -228,72 +243,82 @@ class AuthController {
 
     // Imposta token "ricordami"
     private function setRememberToken() {
-        $token = bin2hex(random_bytes(32));
-        $expires = time() + (30 * 24 * 60 * 60); // 30 giorni
-
-        // Salva nel database
-        $query = "INSERT INTO user_sessions (id, user_id, ip_address, user_agent, expires_at) 
-                 VALUES (:token, :user_id, :ip, :user_agent, FROM_UNIXTIME(:expires))";
-        
-        $stmt = $this->db->prepare($query);
-        $stmt->bindParam(':token', $token);
-        $stmt->bindParam(':user_id', $this->user->id);
-        $stmt->bindParam(':ip', $_SERVER['REMOTE_ADDR']);
-        $stmt->bindParam(':user_agent', $_SERVER['HTTP_USER_AGENT']);
-        $stmt->bindParam(':expires', $expires);
-        $stmt->execute();
-
-        // Imposta cookie
-        setcookie('remember_token', $token, $expires, '/', '', false, true);
+        try {
+            if (!$this->tableExists('user_sessions')) {
+                return; // nessuna persistenza se tabella non presente
+            }
+            $token = bin2hex(random_bytes(32));
+            $expires = time() + (30 * 24 * 60 * 60); // 30 giorni
+            $query = "INSERT INTO user_sessions (id, user_id, ip_address, user_agent, expires_at) 
+                     VALUES (:token, :user_id, :ip, :user_agent, FROM_UNIXTIME(:expires))";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(':token', $token);
+            $stmt->bindParam(':user_id', $this->user->id);
+            $stmt->bindParam(':ip', $_SERVER['REMOTE_ADDR']);
+            $stmt->bindParam(':user_agent', $_SERVER['HTTP_USER_AGENT']);
+            $stmt->bindParam(':expires', $expires);
+            $stmt->execute();
+            setcookie('remember_token', $token, $expires, '/', '', false, true);
+        } catch (Exception $e) {
+            // ignora errori remember-token
+        }
     }
 
     // Rimuovi token "ricordami"
     private function removeRememberToken() {
-        $token = $_COOKIE['remember_token'];
-        
-        // Rimuovi dal database
-        $query = "DELETE FROM user_sessions WHERE id = :token";
-        $stmt = $this->db->prepare($query);
-        $stmt->bindParam(':token', $token);
-        $stmt->execute();
-
-        // Rimuovi cookie
-        setcookie('remember_token', '', time() - 3600, '/');
+        try {
+            if (!isset($_COOKIE['remember_token'])) return;
+            $token = $_COOKIE['remember_token'];
+            if ($this->tableExists('user_sessions')) {
+                $query = "DELETE FROM user_sessions WHERE id = :token";
+                $stmt = $this->db->prepare($query);
+                $stmt->bindParam(':token', $token);
+                $stmt->execute();
+            }
+            setcookie('remember_token', '', time() - 3600, '/');
+        } catch (Exception $e) {
+            // ignora
+        }
     }
 
     // Controlla token "ricordami" ad ogni richiesta
     public function checkRememberToken() {
-        if (isset($_COOKIE['remember_token']) && !isset($_SESSION['user_id'])) {
+        try {
+            if (!isset($_COOKIE['remember_token']) || isset($_SESSION['user_id'])) return;
+            if (!$this->tableExists('user_sessions')) return; // niente remember se tabella assente
             $token = $_COOKIE['remember_token'];
-            
-            $query = "SELECT u.*, s.expires_at 
+            $query = "SELECT u.id, u.nome, u.cognome, u.email, u.ruolo, u.attivo, s.expires_at 
                      FROM user_sessions s 
                      JOIN users u ON s.user_id = u.id 
-                     WHERE s.id = :token AND s.expires_at > NOW() AND u.status = 'active'";
-            
+                     WHERE s.id = :token AND s.expires_at > NOW() AND u.attivo = 1";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':token', $token);
             $stmt->execute();
-
             if ($stmt->rowCount() > 0) {
                 $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+                // Mappa ruolo DB -> user_type app
+                $ruolo_map = [
+                    'partecipante' => 'participant',
+                    'organizzatore' => 'organizer',
+                    'admin' => 'admin'
+                ];
+                $user_type = $ruolo_map[$user_data['ruolo'] ?? 'atleta'] ?? 'participant';
                 // Ripristina sessione
                 $_SESSION['user_id'] = $user_data['id'];
                 $_SESSION['nome'] = $user_data['nome'];
                 $_SESSION['cognome'] = $user_data['cognome'];
                 $_SESSION['email'] = $user_data['email'];
-                $_SESSION['user_type'] = $user_data['user_type'];
-
+                $_SESSION['user_type'] = $user_type;
                 // Aggiorna last_activity
                 $update_query = "UPDATE user_sessions SET last_activity = NOW() WHERE id = :token";
                 $update_stmt = $this->db->prepare($update_query);
                 $update_stmt->bindParam(':token', $token);
                 $update_stmt->execute();
             } else {
-                // Token non valido, rimuovi cookie
                 setcookie('remember_token', '', time() - 3600, '/');
             }
+        } catch (Exception $e) {
+            // Non bloccare la pagina per remember-token errors
         }
     }
 

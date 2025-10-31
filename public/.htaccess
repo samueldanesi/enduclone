@@ -1,14 +1,27 @@
 RewriteEngine On
 
-# Redirect all requests to index.php
+# Allow access to assets and uploads directly
+RewriteCond %{REQUEST_URI} ^/(assets|uploads)/
+RewriteRule ^ - [L]
+
+# Route all other requests through index.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
+RewriteRule ^ index.php [L,QSA]
 
-# Allow access to assets
-RewriteCond %{REQUEST_URI} ^/assets/
-RewriteRule ^(.*)$ - [L]
+# Security
+Options -Indexes
+ServerSignature Off
 
-# Allow access to uploads
-RewriteCond %{REQUEST_URI} ^/uploads/
-RewriteRule ^(.*)$ - [L]
+# Note: php_value directives are not allowed with PHP-FPM on many hosts and cause 500 errors.
+# If you need these limits, set them in php.ini or hosting control panel instead.
+#
+# <IfModule mod_php.c>
+#   php_value upload_max_filesize 10M
+#   php_value post_max_size 10M
+#   php_value max_execution_time 300
+#   php_value memory_limit 256M
+# </IfModule>
+
+# ErrorDocument rules removed to avoid misconfigured targets causing 500s.
+# Provide custom error pages via your router (public/index.php) instead.

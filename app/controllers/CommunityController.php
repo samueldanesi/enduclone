@@ -145,7 +145,9 @@ class CommunityController {
             'type' => $_POST['type'] ?? 'text',
             'title' => $_POST['title'] ?? null,
             'content' => $_POST['content'] ?? '',
-            'visibility' => $_POST['visibility'] ?? 'public'
+            'visibility' => $_POST['visibility'] ?? 'public',
+            'media_url' => null,
+            'media_caption' => null
         ];
 
         // Gestione upload media
@@ -395,11 +397,11 @@ class CommunityController {
      * Get eventi dell'utente
      */
     private function getUserEvents($user_id) {
-        $query = "SELECT DISTINCT e.event_id, e.titolo as event_title, e.data_evento as event_date, e.sport as disciplina
-                 FROM events e
-                 INNER JOIN registrations r ON e.event_id = r.event_id
-                 WHERE r.user_id = :user_id
-                 ORDER BY e.data_evento DESC";
+    $query = "SELECT DISTINCT e.id as event_id, e.titolo as event_title, e.data_evento as event_date
+         FROM events e
+         INNER JOIN registrations r ON e.id = r.event_id
+         WHERE r.user_id = :user_id
+         ORDER BY e.data_evento DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
@@ -412,12 +414,12 @@ class CommunityController {
      * Get risultati eventi utente
      */
     private function getUserEventResults($user_id) {
-        $query = "SELECT e.titolo as event_title, e.data_evento as event_date, 'N/A' as event_discipline, 
-                        er.posizione as posizione, er.tempo_finale as tempo_finale, er.evento_id as evento_id
-                 FROM event_results er
-                 INNER JOIN events e ON er.evento_id = e.event_id
-                 WHERE er.user_id = :user_id
-                 ORDER BY e.data_evento DESC";
+     $query = "SELECT e.titolo as event_title, e.data_evento as event_date, 
+               er.position as posizione, er.time_result as tempo_finale, er.event_id as evento_id
+           FROM event_results er
+           INNER JOIN events e ON er.event_id = e.id
+           WHERE er.user_id = :user_id
+           ORDER BY e.data_evento DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
@@ -450,7 +452,7 @@ class CommunityController {
      * Get dettagli evento
      */
     private function getEventDetails($eventId) {
-        $query = "SELECT * FROM events WHERE event_id = :event_id LIMIT 1";
+        $query = "SELECT * FROM events WHERE id = :event_id LIMIT 1";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
         $stmt->execute();
@@ -462,12 +464,12 @@ class CommunityController {
      * Get post di un evento specifico
      */
     private function getEventPosts($eventId) {
-        $query = "SELECT cp.*, u.nome as author_name,
-                        0 as likes_count,
-                        (SELECT COUNT(*) FROM community_comments cc WHERE cc.post_id = cp.id) as comments_count,
-                        0 as user_liked
-                 FROM community_posts cp
-                 INNER JOIN users u ON cp.user_id = u.user_id
+     $query = "SELECT cp.*, u.nome as author_name,
+               cp.likes_count as likes_count,
+               (SELECT COUNT(*) FROM community_comments cc WHERE cc.post_id = cp.id) as comments_count,
+               0 as user_liked
+           FROM community_posts cp
+           INNER JOIN users u ON cp.user_id = u.id
                  WHERE cp.event_id = :event_id
                  ORDER BY cp.created_at DESC";
         
@@ -489,7 +491,7 @@ class CommunityController {
      * Get numero partecipanti evento
      */
     private function getEventParticipantsCount($eventId) {
-        $query = "SELECT COUNT(*) as total FROM registrations WHERE event_id = :event_id";
+    $query = "SELECT COUNT(*) as total FROM registrations WHERE event_id = :event_id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
         $stmt->execute();
@@ -502,9 +504,9 @@ class CommunityController {
      * Get commenti di un post
      */
     private function getPostComments($postId) {
-        $query = "SELECT cc.*, u.nome as author_name
-                 FROM community_comments cc
-                 INNER JOIN users u ON cc.user_id = u.user_id
+    $query = "SELECT cc.*, u.nome as author_name
+         FROM community_comments cc
+         INNER JOIN users u ON cc.user_id = u.id
                  WHERE cc.post_id = :post_id
                  ORDER BY cc.created_at ASC";
         

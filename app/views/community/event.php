@@ -408,7 +408,7 @@
             <div class="event-meta">
                 <span><i class="fas fa-calendar"></i> <?= date('d/m/Y H:i', strtotime($event['data_evento'])) ?></span>
                 <span><i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($event['luogo_partenza']) ?></span>
-                <span><i class="fas fa-running"></i> <?= htmlspecialchars($event['sport'] . ' - ' . $event['disciplina']) ?></span>
+                <span><i class="fas fa-running"></i> <?= htmlspecialchars($event['sport'] ?? 'Sport non specificato') ?></span>
                 <?php if ($event['distanza_km']): ?>
                     <span><i class="fas fa-route"></i> <?= $event['distanza_km'] ?> km</span>
                 <?php endif; ?>
@@ -437,7 +437,7 @@
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
-                <a href="/events/<?= $event['id'] ?>" class="btn btn-secondary">
+                <a href="/events/<?= $event['event_id'] ?>" class="btn btn-secondary">
                     <i class="fas fa-info-circle"></i> Dettagli Evento
                 </a>
             </div>
@@ -447,7 +447,7 @@
         <?php if ($isRegistered): ?>
         <form class="post-form" method="POST" action="/community/create">
             <h3><i class="fas fa-pen"></i> Condividi con i partecipanti</h3>
-            <input type="hidden" name="event_id" value="<?= $event['id'] ?>">
+            <input type="hidden" name="event_id" value="<?= $event['event_id'] ?>">
             <div class="form-group">
                 <textarea name="contenuto" 
                           class="form-control" 
@@ -462,7 +462,7 @@
         <div class="post-form">
             <h3><i class="fas fa-lock"></i> Accesso Limitato</h3>
             <p>Solo i partecipanti registrati a questo evento possono pubblicare nella sua community.</p>
-            <a href="/events/<?= $event['id'] ?>/register" class="btn btn-primary">
+            <a href="<?= BASE_URL ?>/events/<?= $event['event_id'] ?>/register" class="btn btn-primary">
                 <i class="fas fa-user-plus"></i> Iscriviti all'Evento
             </a>
         </div>

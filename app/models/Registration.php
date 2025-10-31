@@ -9,11 +9,11 @@ class Registration {
     public $registration_id;
     public $user_id;
     public $event_id;
-    public $data_registrazione;
-    public $stato; // 'pending', 'confermata', 'pagata', 'annullata'
+    public $created_at; // sportevents_db
+    public $status; // 'pending','confirmed','cancelled','refunded'
     public $prezzo_pagato;
     public $totale_pagato;
-    public $metodo_pagamento; // 'contanti', 'carta', 'bonifico', 'paypal', 'stripe'
+    public $metodo_pagamento; // opzionale
     public $note;
 
     public function __construct($db) {
@@ -24,17 +24,14 @@ class Registration {
     public function create() {
         $query = "INSERT INTO " . $this->table . " 
                  SET user_id=:user_id, event_id=:event_id, prezzo_pagato=:prezzo_pagato,
-                     totale_pagato=:totale_pagato, metodo_pagamento=:metodo_pagamento, 
-                     stato=:stato, note=:note, data_registrazione=NOW()";
+                     status=:status, note=:note, created_at=NOW()";
 
         $stmt = $this->conn->prepare($query);
 
         $stmt->bindParam(':user_id', $this->user_id);
         $stmt->bindParam(':event_id', $this->event_id);
         $stmt->bindParam(':prezzo_pagato', $this->prezzo_pagato);
-        $stmt->bindParam(':totale_pagato', $this->totale_pagato);
-        $stmt->bindParam(':metodo_pagamento', $this->metodo_pagamento);
-        $stmt->bindParam(':stato', $this->stato);
+    $stmt->bindParam(':status', $this->status);
         $stmt->bindParam(':note', $this->note);
 
         if ($stmt->execute()) {
@@ -46,9 +43,9 @@ class Registration {
 
     // Verifica se l'utente è già iscritto all'evento
     public function isUserRegistered($user_id, $event_id) {
-        $query = "SELECT registration_id FROM " . $this->table . " 
-                 WHERE user_id = :user_id AND event_id = :event_id 
-                 AND (stato IN ('pending', 'confermata', 'pagata') OR stato IS NULL OR stato = '')";
+    $query = "SELECT id FROM " . $this->table . " 
+        WHERE user_id = :user_id AND event_id = :event_id 
+        AND status IN ('confermata','confirmed')";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -60,12 +57,12 @@ class Registration {
 
     // Ottieni iscrizioni dell'utente
     public function getUserRegistrations($user_id) {
-        $query = "SELECT r.*, e.titolo as event_title, e.data_evento, e.luogo_partenza,
-                         e.sport, e.categoria_id
-                 FROM " . $this->table . " r
-                 JOIN events e ON r.event_id = e.event_id
-                 WHERE r.user_id = :user_id
-                 ORDER BY r.data_registrazione DESC";
+    $query = "SELECT r.*, e.titolo as event_title, e.data_evento, e.luogo_partenza,
+             e.categoria_id
+         FROM " . $this->table . " r
+         JOIN events e ON r.event_id = e.id
+         WHERE r.user_id = :user_id
+         ORDER BY r.created_at DESC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -76,12 +73,12 @@ class Registration {
 
     // Ottieni iscrizioni dell'evento (per organizzatori)
     public function getEventRegistrations($event_id) {
-        $query = "SELECT r.*, u.nome, u.cognome, u.email, u.telefono, 
-                         u.data_nascita, u.sesso
-                 FROM " . $this->table . " r
-                 JOIN users u ON r.user_id = u.user_id
-                 WHERE r.event_id = :event_id AND r.stato = 'confermata'
-                 ORDER BY r.data_registrazione ASC";
+    $query = "SELECT r.*, u.nome, u.cognome, u.email, u.cellulare, 
+             u.data_nascita, u.sesso
+         FROM " . $this->table . " r
+         JOIN users u ON r.user_id = u.id
+         WHERE r.event_id = :event_id AND r.status IN ('confermata','confirmed')
+         ORDER BY r.created_at ASC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -92,8 +89,8 @@ class Registration {
 
     // Conta partecipanti confermati per evento
     public function countConfirmedParticipants($event_id) {
-        $query = "SELECT COUNT(*) as count FROM " . $this->table . " 
-                 WHERE event_id = :event_id AND stato = 'confermata'";
+    $query = "SELECT COUNT(*) as count FROM " . $this->table . " 
+        WHERE event_id = :event_id AND status IN ('confermata','confirmed')";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -105,12 +102,12 @@ class Registration {
 
     // Aggiorna status iscrizione
     public function updateStatus($registration_id, $new_status) {
-        $query = "UPDATE " . $this->table . " 
-                 SET stato=:stato, updated_at=NOW() 
-                 WHERE registration_id=:id";
+    $query = "UPDATE " . $this->table . " 
+        SET status=:status, updated_at=NOW() 
+        WHERE id=:id";
 
         $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':stato', $new_status);
+    $stmt->bindParam(':status', $new_status);
         $stmt->bindParam(':id', $registration_id);
 
         return $stmt->execute();
@@ -118,9 +115,9 @@ class Registration {
 
     // Cancella iscrizione
     public function cancel($user_id, $event_id) {
-        $query = "UPDATE " . $this->table . " 
-                 SET stato='annullata', updated_at=NOW() 
-                 WHERE user_id=:user_id AND event_id=:event_id";
+    $query = "UPDATE " . $this->table . " 
+        SET status='cancelled', updated_at=NOW() 
+        WHERE user_id=:user_id AND event_id=:event_id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -131,12 +128,12 @@ class Registration {
 
     // Ottieni dettagli iscrizione
     public function getRegistrationDetails($user_id, $event_id) {
-        $query = "SELECT r.*, e.titolo as event_title, e.data_evento, e.prezzo_base,
-                         u.nome, u.cognome, u.email
-                 FROM " . $this->table . " r
-                 JOIN events e ON r.event_id = e.event_id
-                 JOIN users u ON r.user_id = u.user_id
-                 WHERE r.user_id = :user_id AND r.event_id = :event_id";
+    $query = "SELECT r.*, e.titolo as event_title, e.data_evento, e.prezzo_base,
+             u.nome, u.cognome, u.email
+         FROM " . $this->table . " r
+         JOIN events e ON r.event_id = e.id
+         JOIN users u ON r.user_id = u.id
+         WHERE r.user_id = :user_id AND r.event_id = :event_id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -154,9 +151,9 @@ class Registration {
         $stats = [];
 
         // Totale iscritti confermati
-        $query = "SELECT COUNT(*) as total_confirmed
-                 FROM " . $this->table . " 
-                 WHERE event_id = :event_id AND stato = 'confermata'";
+    $query = "SELECT COUNT(*) as total_confirmed
+        FROM " . $this->table . " 
+        WHERE event_id = :event_id AND status IN ('confermata','confirmed')";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -164,9 +161,9 @@ class Registration {
         $stats['total_confirmed'] = $stmt->fetch(PDO::FETCH_ASSOC)['total_confirmed'];
 
         // Totale incassi
-        $query = "SELECT SUM(prezzo_pagato) as total_revenue
-                 FROM " . $this->table . " 
-                 WHERE event_id = :event_id AND stato = 'confermata'";
+    $query = "SELECT SUM(prezzo_pagato) as total_revenue
+        FROM " . $this->table . " 
+        WHERE event_id = :event_id AND status IN ('confermata','confirmed')";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -174,13 +171,13 @@ class Registration {
         $stats['total_revenue'] = $stmt->fetch(PDO::FETCH_ASSOC)['total_revenue'] ?? 0;
 
         // Iscrizioni per giorno (ultimi 30 giorni)
-        $query = "SELECT DATE(data_registrazione) as date, COUNT(*) as count
-                 FROM " . $this->table . " 
-                 WHERE event_id = :event_id 
-                   AND data_registrazione >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-                   AND stato = 'confermata'
-                 GROUP BY DATE(data_registrazione)
-                 ORDER BY date ASC";
+                $query = "SELECT DATE(created_at) as date, COUNT(*) as count
+                                 FROM " . $this->table . " 
+                                 WHERE event_id = :event_id 
+                                     AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                                     AND status IN ('confermata','confirmed')
+                                 GROUP BY DATE(created_at)
+                                 ORDER BY date ASC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);
@@ -192,11 +189,11 @@ class Registration {
 
     // Verifica disponibilità posti
     public function checkEventAvailability($event_id) {
-        $query = "SELECT e.max_partecipanti, COUNT(r.registration_id) as current_registrations
-                 FROM events e
-                 LEFT JOIN " . $this->table . " r ON e.event_id = r.event_id AND r.stato = 'confermata'
-                 WHERE e.event_id = :event_id
-                 GROUP BY e.event_id";
+    $query = "SELECT e.capienza_massima AS max_partecipanti, COUNT(r.id) as current_registrations
+        FROM events e
+        LEFT JOIN " . $this->table . " r ON e.id = r.event_id AND r.status IN ('confermata','confirmed')
+        WHERE e.id = :event_id
+        GROUP BY e.id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':event_id', $event_id);

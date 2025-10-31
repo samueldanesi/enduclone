@@ -5,6 +5,7 @@
 class User {
     private $conn;
     private $table = 'users';
+    private $col = null; // dynamic column map for schema variants
 
     public $id;
     public $nome;
@@ -26,12 +27,59 @@ class User {
         $this->conn = $db;
     }
 
+    // Resolve column mapping based on existing schema
+    private function resolveColumns() {
+        if ($this->col !== null) return;
+        // defaults to modern schema (id, user_type, status, cellulare, created_at)
+        $this->col = [
+            'id' => 'id',
+            'email' => 'email',
+            'password' => 'password',
+            'nome' => 'nome',
+            'cognome' => 'cognome',
+            'data_nascita' => 'data_nascita',
+            'sesso' => 'sesso',
+            'telefono' => 'cellulare',
+            'role' => 'user_type',
+            'active' => 'status',
+            'created' => 'created_at',
+            'updated' => 'updated_at',
+            'certificato' => 'certificato_medico',
+            'tessera' => 'tessera_affiliazione'
+        ];
+        // adapt to eventi_sportivi_db legacy naming
+        if ($this->columnExists('users', 'user_id')) $this->col['id'] = 'user_id';
+        if ($this->columnExists('users', 'telefono')) $this->col['telefono'] = 'telefono';
+        if ($this->columnExists('users', 'ruolo')) $this->col['role'] = 'ruolo';
+        if ($this->columnExists('users', 'attivo')) $this->col['active'] = 'attivo';
+        if ($this->columnExists('users', 'data_registrazione')) $this->col['created'] = 'data_registrazione';
+        if ($this->columnExists('users', 'ultimo_accesso')) $this->col['updated'] = 'ultimo_accesso';
+    }
+
+    private function columnExists($table, $column) {
+        try {
+            $stmt = $this->conn->prepare("SHOW COLUMNS FROM `".$table."` LIKE :col");
+            $stmt->bindValue(':col', $column);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
     // Registrazione nuovo utente
     public function register() {
+        $this->resolveColumns();
+        $idCol = $this->col['id']; // not used on insert (auto inc)
+        $telCol = $this->col['telefono'];
+        $roleCol = $this->col['role'];
+        $activeCol = $this->col['active'];
+        // Build status/active values depending on schema type
+        $activeVal = ($activeCol === 'attivo') ? 1 : 'active';
         $query = "INSERT INTO " . $this->table . " 
                  SET nome=:nome, cognome=:cognome, email=:email, password=:password, 
-                     data_nascita=:data_nascita, sesso=:sesso, telefono=:cellulare,
-                     ruolo=:user_type";
+                     data_nascita=:data_nascita, sesso=:sesso, `$telCol`=:telefono,
+                     `$roleCol`=:user_type, `$activeCol`=:active_val";
 
         $stmt = $this->conn->prepare($query);
 
@@ -45,15 +93,16 @@ class User {
         $stmt->bindParam(':password', $password_hash);
         $stmt->bindParam(':data_nascita', $this->data_nascita);
         $stmt->bindParam(':sesso', $this->sesso);
-        $stmt->bindParam(':cellulare', $this->cellulare);
-        // Mappatura user_type per il database
-        $ruolo_map = [
-            'participant' => 'atleta',
-            'organizer' => 'organizzatore', 
+        $stmt->bindParam(':telefono', $this->cellulare);
+        // Map user_type to DB role values
+        $type_map = [
+            'participant' => ($roleCol === 'ruolo' ? 'atleta' : 'participant'),
+            'organizer' => ($roleCol === 'ruolo' ? 'organizzatore' : 'organizer'), 
             'admin' => 'admin'
         ];
-        $ruolo_db = $ruolo_map[$this->user_type] ?? 'atleta';
-        $stmt->bindParam(':user_type', $ruolo_db);
+        $type_db = $type_map[$this->user_type] ?? ($roleCol === 'ruolo' ? 'atleta' : 'participant');
+        $stmt->bindParam(':user_type', $type_db);
+        $stmt->bindValue(':active_val', $activeVal);
 
         if ($stmt->execute()) {
             $this->id = $this->conn->lastInsertId();
@@ -64,9 +113,15 @@ class User {
 
     // Login utente
     public function login($email, $password) {
-        $query = "SELECT user_id as id, nome, cognome, email, password, ruolo as user_type, data_registrazione as created_at 
-                 FROM " . $this->table . " 
-                 WHERE email = :email AND attivo = 1";
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
+        $roleCol = $this->col['role'];
+        $activeCol = $this->col['active'];
+        $createdCol = $this->col['created'];
+        $activeCond = ($activeCol === 'attivo') ? "$activeCol = 1" : "$activeCol = 'active'";
+        $query = "SELECT `$idCol` AS id, nome, cognome, email, password, `$roleCol` AS user_type, `$createdCol` AS created_at 
+                  FROM " . $this->table . " 
+                  WHERE email = :email AND $activeCond";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':email', $email);
@@ -82,14 +137,15 @@ class User {
                 $this->email = $row['email'];
                 
                 // Mappatura inversa ruolo database -> user_type
-                $ruolo_map = [
-                    'atleta' => 'participant',
-                    'organizzatore' => 'organizer', 
-                    'admin' => 'admin'
-                ];
-                $this->user_type = $ruolo_map[$row['user_type']] ?? 'participant';
+                // Map DB role to app user_type
+                $role = $row['user_type'] ?? 'participant';
+                if ($roleCol === 'ruolo') {
+                    $map = ['atleta' => 'participant', 'organizzatore' => 'organizer', 'admin' => 'admin'];
+                    $role = $map[$role] ?? 'participant';
+                }
+                $this->user_type = $role;
                 
-                $this->created_at = $row['created_at'];
+                $this->created_at = $row['created_at'] ?? null;
                 return true;
             }
         }
@@ -98,7 +154,9 @@ class User {
 
     // Verifica se email esiste già
     public function emailExists() {
-        $query = "SELECT user_id as id FROM " . $this->table . " WHERE email = :email";
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
+        $query = "SELECT `$idCol` FROM " . $this->table . " WHERE email = :email";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':email', $this->email);
         $stmt->execute();
@@ -108,8 +166,13 @@ class User {
 
     // Carica dati utente per ID
     public function readOne() {
-        $query = "SELECT user_id as id, nome, cognome, email, data_nascita, sesso, telefono, ruolo as user_type, certificato_medico, data_registrazione as created_at 
-                 FROM " . $this->table . " WHERE user_id = :id";
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
+        $telCol = $this->col['telefono'];
+        $roleCol = $this->col['role'];
+        $createdCol = $this->col['created'];
+        $query = "SELECT `$idCol` AS id, nome, cognome, email, data_nascita, sesso, `$telCol` AS cellulare, `$roleCol` AS user_type, certificato_medico, `$createdCol` AS created_at 
+                  FROM " . $this->table . " WHERE `$idCol` = :id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $this->id);
         $stmt->execute();
@@ -122,15 +185,15 @@ class User {
             $this->email = $row['email'];
             $this->data_nascita = $row['data_nascita'] ?? null;
             $this->sesso = $row['sesso'] ?? null;
-            $this->cellulare = $row['telefono'] ?? null;
+            $this->cellulare = $row['cellulare'] ?? null;
             
             // Mappatura inversa ruolo database -> user_type
-            $ruolo_map = [
-                'atleta' => 'participant',
-                'organizzatore' => 'organizer', 
-                'admin' => 'admin'
-            ];
-            $this->user_type = $ruolo_map[$row['user_type']] ?? 'participant';
+            $role = $row['user_type'] ?? 'participant';
+            if ($roleCol === 'ruolo') {
+                $map = ['atleta' => 'participant', 'organizzatore' => 'organizer', 'admin' => 'admin'];
+                $role = $map[$role] ?? 'participant';
+            }
+            $this->user_type = $role;
             $this->certificato_medico = $row['certificato_medico'] ?? null;
             $this->created_at = $row['created_at'];
             
@@ -141,9 +204,13 @@ class User {
 
     // Aggiorna profilo utente
     public function update() {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
+        $telCol = $this->col['telefono'];
+        $updatedCol = $this->col['updated'];
         $query = "UPDATE " . $this->table . " 
                  SET nome=:nome, cognome=:cognome, data_nascita=:data_nascita, 
-                     sesso=:sesso, cellulare=:cellulare, updated_at=NOW()";
+                     sesso=:sesso, `$telCol`=:telefono, `$updatedCol`=NOW()";
         
         // Aggiungi campi opzionali se presenti
         if ($this->certificato_medico) {
@@ -153,7 +220,7 @@ class User {
             $query .= ", tessera_affiliazione=:tessera_affiliazione";
         }
         
-        $query .= " WHERE user_id=:id";
+        $query .= " WHERE `$idCol`=:id";
 
         $stmt = $this->conn->prepare($query);
 
@@ -161,8 +228,8 @@ class User {
         $stmt->bindParam(':cognome', $this->cognome);
         $stmt->bindParam(':data_nascita', $this->data_nascita);
         $stmt->bindParam(':sesso', $this->sesso);
-        $stmt->bindParam(':cellulare', $this->cellulare);
-        $stmt->bindParam(':id', $this->id);
+    $stmt->bindParam(':telefono', $this->cellulare);
+    $stmt->bindParam(':id', $this->id);
 
         if ($this->certificato_medico) {
             $stmt->bindParam(':certificato_medico', $this->certificato_medico);
@@ -178,6 +245,8 @@ class User {
 
     // Ottieni statistiche utente
     public function getStatistics() {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
         $stats = [];
         
         // Numero iscrizioni
@@ -189,9 +258,9 @@ class User {
         
         // Eventi completati
         $query = "SELECT COUNT(*) as completed_events 
-                 FROM registrations r 
-                 JOIN events e ON r.event_id = e.event_id 
-                 WHERE r.user_id = :user_id AND e.data_evento < NOW()";
+            FROM registrations r 
+            JOIN events e ON r.event_id = e.id 
+            WHERE r.user_id = :user_id AND e.data_evento < NOW()";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $this->id);
         $stmt->execute();
@@ -202,8 +271,10 @@ class User {
 
     // Cambio password
     public function changePassword($old_password, $new_password) {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
         // Verifica password attuale
-        $query = "SELECT password FROM " . $this->table . " WHERE user_id = :id";
+        $query = "SELECT password FROM " . $this->table . " WHERE `$idCol` = :id";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $this->id);
         $stmt->execute();
@@ -214,7 +285,7 @@ class User {
             if (password_verify($old_password, $row['password'])) {
                 // Aggiorna con nuova password
                 $new_password_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                $update_query = "UPDATE " . $this->table . " SET password=:password WHERE user_id=:id";
+                $update_query = "UPDATE " . $this->table . " SET password=:password WHERE `$idCol`=:id";
                 $update_stmt = $this->conn->prepare($update_query);
                 $update_stmt->bindParam(':password', $new_password_hash);
                 $update_stmt->bindParam(':id', $this->id);
@@ -227,6 +298,8 @@ class User {
 
     // Upload certificato medico
     public function uploadCertificato($file, $tipo_certificato, $scadenza = null) {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
         $upload_dir = __DIR__ . '/../../uploads/certificates/';
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0755, true);
@@ -249,8 +322,10 @@ class User {
             
             // Aggiorna database
             $query = "UPDATE " . $this->table . " 
-                     SET certificato_medico=:certificato_medico
-                     WHERE user_id=:id";
+                     SET certificato_medico=:certificato_medico,
+                         tipo_certificato=:tipo_certificato,
+                         scadenza_certificato=:scadenza_certificato
+                     WHERE `$idCol`=:id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':certificato_medico', $this->certificato_medico);
             $stmt->bindParam(':tipo_certificato', $this->tipo_certificato);
@@ -264,6 +339,8 @@ class User {
 
     // Upload tessera affiliazione
     public function uploadTessera($file) {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
         $upload_dir = __DIR__ . '/../../uploads/cards/';
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0755, true);
@@ -283,7 +360,7 @@ class User {
             $this->tessera_affiliazione = 'cards/' . $filename;
             
             // Aggiorna database
-            $query = "UPDATE " . $this->table . " SET tessera_affiliazione=:tessera_affiliazione WHERE user_id=:id";
+    $query = "UPDATE " . $this->table . " SET tessera_affiliazione=:tessera_affiliazione WHERE `$idCol`=:id";
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':tessera_affiliazione', $this->tessera_affiliazione);
             $stmt->bindParam(':id', $this->id);
@@ -323,13 +400,15 @@ class User {
 
     // Ottieni storico iscrizioni utente
     public function getRegistrationHistory() {
+        $this->resolveColumns();
+        $idCol = $this->col['id'];
         $query = "SELECT r.*, e.titolo as event_title, e.data_evento, e.luogo_partenza, 
-                         e.sport, e.distanza_km, e.prezzo_base,
-                         r.prezzo_pagato
-                 FROM registrations r
-                 JOIN events e ON r.event_id = e.event_id
-                 WHERE r.user_id = :user_id
-                 ORDER BY r.registration_id DESC";
+                 e.prezzo_base,
+                 r.status, r.created_at
+             FROM registrations r
+             JOIN events e ON r.event_id = e.id
+             WHERE r.user_id = :user_id
+             ORDER BY r.id DESC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $this->id);

@@ -15,8 +15,8 @@ class CommunityPost {
      */
     public function create($data) {
         $query = "INSERT INTO {$this->table} 
-                 (user_id, event_id, type, title, content, media_url, media_caption) 
-                 VALUES (:user_id, :event_id, :type, :title, :content, :media_url, :media_caption)";
+                 (user_id, event_id, type, title, content, media_url, media_caption, visibility) 
+                 VALUES (:user_id, :event_id, :type, :title, :content, :media_url, :media_caption, :visibility)";
         
         $stmt = $this->conn->prepare($query);
         
@@ -27,6 +27,7 @@ class CommunityPost {
         $stmt->bindParam(':content', $data['content']);
         $stmt->bindParam(':media_url', $data['media_url']);
         $stmt->bindParam(':media_caption', $data['media_caption']);
+        $stmt->bindParam(':visibility', $data['visibility']);
         
         if ($stmt->execute()) {
             return $this->conn->lastInsertId();
@@ -39,11 +40,11 @@ class CommunityPost {
      * Get feed posts UNIVERSALI (senza evento specifico)
      */
     public function getUniversalFeed($limit = 10, $offset = 0) {
-        $query = "SELECT p.*, 
+    $query = "SELECT p.*, 
                         u.nome as user_nome, 
                         u.cognome as user_cognome
                  FROM {$this->table} p
-                 LEFT JOIN users u ON p.user_id = u.user_id
+         LEFT JOIN users u ON p.user_id = u.id
                  WHERE p.event_id IS NULL
                  ORDER BY p.created_at DESC
                  LIMIT :limit OFFSET :offset";
@@ -60,12 +61,12 @@ class CommunityPost {
      * Get feed posts per EVENTO SPECIFICO
      */
     public function getEventFeed($event_id, $limit = 10, $offset = 0) {
-        $query = "SELECT p.*, 
+    $query = "SELECT p.*, 
                         u.nome as user_nome, 
                         u.cognome as user_cognome,
                         e.titolo as event_title
                  FROM {$this->table} p
-                 LEFT JOIN users u ON p.user_id = u.user_id
+         LEFT JOIN users u ON p.user_id = u.id
                  LEFT JOIN events e ON p.event_id = e.id
                  WHERE p.event_id = :event_id
                  ORDER BY p.created_at DESC
@@ -84,12 +85,12 @@ class CommunityPost {
      * Get post singolo con dettagli
      */
     public function getById($id) {
-        $query = "SELECT p.*, 
+    $query = "SELECT p.*, 
                         u.nome as user_nome, 
                         u.cognome as user_cognome,
                         e.titolo as event_title
                  FROM {$this->table} p
-                 LEFT JOIN users u ON p.user_id = u.user_id
+         LEFT JOIN users u ON p.user_id = u.id
                  LEFT JOIN events e ON p.event_id = e.id
                  WHERE p.id = :id";
         
@@ -179,12 +180,12 @@ class CommunityPost {
      * Get posts di un utente
      */
     public function getByUser($user_id, $limit = 10, $offset = 0) {
-        $query = "SELECT p.*, 
+    $query = "SELECT p.*, 
                         u.nome as user_nome, 
                         u.cognome as user_cognome,
                         e.titolo as event_title
                  FROM {$this->table} p
-                 LEFT JOIN users u ON p.user_id = u.user_id
+         LEFT JOIN users u ON p.user_id = u.id
                  LEFT JOIN events e ON p.event_id = e.id
                  WHERE p.user_id = :user_id
                  ORDER BY p.created_at DESC

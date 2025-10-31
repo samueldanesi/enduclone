@@ -63,12 +63,12 @@
                         <label class="block text-sm font-medium text-gray-700 mb-3">Tipo di Account</label>
                         <div class="flex space-x-6">
                             <label class="flex items-center cursor-pointer">
-                                <input type="radio" name="user_type" value="participant" checked 
+                                <input type="radio" name="user_type" value="participant" <?= ((($_GET['type'] ?? '') !== 'organizer') && (($_SESSION['form_data']['user_type'] ?? '') !== 'organizer')) ? 'checked' : '' ?> 
                                        class="w-4 h-4 text-primary border-gray-300 focus:ring-primary">
                                 <span class="ml-2 text-gray-700">🏃‍♂️ Partecipante</span>
                             </label>
                             <label class="flex items-center cursor-pointer">
-                                <input type="radio" name="user_type" value="organizer" 
+                                <input type="radio" name="user_type" value="organizer" <?= ((($_GET['type'] ?? '') === 'organizer') || (($_SESSION['form_data']['user_type'] ?? '') === 'organizer')) ? 'checked' : '' ?> 
                                        class="w-4 h-4 text-primary border-gray-300 focus:ring-primary">
                                 <span class="ml-2 text-gray-700">🏛️ Organizzatore</span>
                             </label>
@@ -131,7 +131,6 @@
                                 <option value="">Seleziona...</option>
                                 <option value="M" <?= (($_SESSION['form_data']['sesso'] ?? '') === 'M') ? 'selected' : '' ?>>Maschio</option>
                                 <option value="F" <?= (($_SESSION['form_data']['sesso'] ?? '') === 'F') ? 'selected' : '' ?>>Femmina</option>
-                                <option value="altro" <?= (($_SESSION['form_data']['sesso'] ?? '') === 'altro') ? 'selected' : '' ?>>Altro</option>
                             </select>
                         </div>
                     </div>
@@ -144,7 +143,7 @@
                     </div>
 
                     <!-- Documenti opzionali -->
-                    <div style="background: var(--background-light); padding: 1.5rem; border-radius: var(--border-radius); margin: 1.5rem 0;">
+                    <div id="documents-block" style="background: var(--background-light); padding: 1.5rem; border-radius: var(--border-radius); margin: 1.5rem 0;">
                         <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Documenti (Opzionali)</h3>
                         <p style="color: var(--text-medium); font-size: 0.875rem; margin-bottom: 1rem;">
                             Puoi caricare questi documenti ora o successivamente dal tuo profilo.
@@ -217,13 +216,19 @@
             }
         });
 
-        // Mostra/nascondi campi in base al tipo di utente
-        document.querySelectorAll('input[name="user_type"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                // Qui si potrebbero aggiungere campi specifici per organizzatori
-                console.log('Tipo utente selezionato:', this.value);
-            });
-        });
+        // Mostra/nascondi documenti in base al tipo di utente (solo partecipante)
+        const docsBlock = document.getElementById('documents-block');
+        const userTypeRadios = document.querySelectorAll('input[name="user_type"]');
+        function toggleDocuments() {
+            const selected = document.querySelector('input[name="user_type"]:checked')?.value || 'participant';
+            if (selected === 'organizer') {
+                docsBlock.style.display = 'none';
+            } else {
+                docsBlock.style.display = '';
+            }
+        }
+        userTypeRadios.forEach(r => r.addEventListener('change', toggleDocuments));
+        toggleDocuments();
     </script>
 
     <?php 

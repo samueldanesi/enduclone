@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: sportevents
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    envVars:
+      - key: PHP_DISPLAY_ERRORS
+        value: "0"
+      - key: DB_SSL
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+    healthCheckPath: /
+    disk:
+      name: uploads
+      mountPath: /var/www/html/uploads
+      sizeGB: 1

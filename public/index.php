@@ -1,4 +1,8 @@
 <?php
+// Avvio sessione prima di qualsiasi output
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
@@ -29,6 +33,22 @@ $path = rtrim($path, '/'); // Rimuovi slash finale
 // Serve static files
 if (preg_match('/\.(css|js|png|jpg|jpeg|gif|ico|svg)$/', $path)) {
     return false; // Let PHP built-in server handle static files
+}
+
+// Serve uploads files
+if (strpos($path, '/uploads/') === 0) {
+    $file_path = __DIR__ . '/..' . $path;
+    if (file_exists($file_path) && is_file($file_path)) {
+        $mime_type = mime_content_type($file_path);
+        header('Content-Type: ' . $mime_type);
+        header('Content-Length: ' . filesize($file_path));
+        readfile($file_path);
+        exit;
+    } else {
+        http_response_code(404);
+        echo "File not found";
+        exit;
+    }
 }
 
 // Estrai parametri dalla URL

@@ -388,7 +388,7 @@
                             <!-- Qui verranno popolati gli eventi dinamicamente -->
                         </select>
                         
-                        <label style="display: flex; align-items: center; gap: 10px; color: white;">
+                        <label style="display: flex; align-items: center; gap: 10px; color: #333;">
                             <input type="checkbox" name="disponibili" value="1" 
                                    <?= isset($_GET['disponibili']) ? 'checked' : '' ?>>
                             Solo disponibili

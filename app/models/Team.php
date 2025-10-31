@@ -36,6 +36,17 @@ class Team {
         $this->conn = $db;
     }
 
+    private function columnExists($table, $column) {
+        try {
+            $stmt = $this->conn->prepare("SHOW COLUMNS FROM `{$table}` LIKE :col");
+            $stmt->bindValue(':col', $column);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
     // Trova team per ID
     public function findById($id) {
         $query = "SELECT * FROM " . $this->table . " WHERE id = :id";
@@ -55,9 +66,15 @@ class Team {
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':nome_team', $data['nome']);
         $stmt->bindParam(':descrizione', $data['descrizione']);
-        $stmt->bindParam(':privacy', $data['tipo']);
-        $stmt->bindParam(':captain_id', $data['leader_id']);
-        $stmt->bindParam(':evento_id', $data['evento_id'] ?? null);
+        
+        $privacy = $data['tipo'];
+        $stmt->bindParam(':privacy', $privacy);
+        
+        $leader_id = $data['leader_id'];
+        $stmt->bindParam(':captain_id', $leader_id);
+        
+        $evento_id = $data['evento_id'] ?? null;
+        $stmt->bindParam(':evento_id', $evento_id);
         
         if ($stmt->execute()) {
             return $this->conn->lastInsertId();
@@ -106,11 +123,16 @@ class Team {
 
     // Cerca team
     public function search($search_term = '', $tipo = '', $limit = 20, $offset = 0, $categoria_eventi = '', $visibilita = '') {
+        $hasStatus = $this->columnExists('team_members', 'status');
+        $memberActiveCond = $hasStatus ? "tm.status = 'active'" : "tm.attivo = 1";
         $query = "SELECT t.*, 
+                        t.id as id,
+                        t.id as team_id,
+                        t.nome as nome,
                         COUNT(tm.user_id) as members_count
-                 FROM " . $this->table . " t 
-                 LEFT JOIN team_members tm ON t.team_id = tm.team_id AND tm.stato = 'attivo'
-                 WHERE t.stato = 'active'";
+                   FROM " . $this->table . " t 
+                   LEFT JOIN team_members tm ON t.id = tm.team_id AND {$memberActiveCond}
+                   WHERE t.status = 'active'";
         $params = [];
         
         // Filtro per ricerca testuale
@@ -141,7 +163,7 @@ class Team {
             $params[':visibilita'] = $visibilita;
         }
 
-        $query .= " GROUP BY t.team_id ORDER BY t.nome_team ASC LIMIT :limit OFFSET :offset";
+        $query .= " GROUP BY t.id ORDER BY t.nome ASC LIMIT :limit OFFSET :offset";
 
         $stmt = $this->conn->prepare($query);
         
@@ -159,7 +181,7 @@ class Team {
     public function addMember($team_id, $user_id, $ruolo = 'member', $invited_by = null) {
         $query = "INSERT INTO team_members 
                  SET team_id=:team_id, user_id=:user_id, ruolo=:ruolo, 
-                     data_iscrizione=CURDATE(), attivo=1";
+                     status='active'";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -170,23 +192,35 @@ class Team {
     }
 
     // Ottieni membri del team
-    public function getMembers($team_id, $active = 1) {
-        $query = "SELECT tm.*, u.nome, u.cognome, u.email, u.cellulare,
-                        tm.data_join as joined_at
-                 FROM team_members tm
-                 JOIN users u ON tm.user_id = u.id
-                 WHERE tm.team_id = :team_id";
+    public function getMembers($team_id, $status = 'active') {
+        $hasStatus = $this->columnExists('team_members', 'status');
+        $hasJoinedAt = $this->columnExists('team_members', 'joined_at');
+        $joinedCol = $hasJoinedAt ? 'tm.joined_at' : 'tm.data_iscrizione';
+        $query = "SELECT tm.*, u.nome, u.cognome, u.email, u.cellulare, {$joinedCol} as joined_at
+                   FROM team_members tm
+                   JOIN users u ON tm.user_id = u.id
+                   WHERE tm.team_id = :team_id";
         
-        if ($active !== null) {
-            $query .= " AND tm.stato = 'attivo' = :attivo";
+        if ($status !== null) {
+            if ($hasStatus) {
+                $query .= " AND tm.status = :status";
+            } else {
+                // legacy boolean
+                $query .= " AND tm.attivo = :attivo";
+            }
         }
         
         $query .= " ORDER BY tm.ruolo DESC, u.nome ASC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
-        if ($active !== null) {
-            $stmt->bindParam(':attivo', $active);
+        if ($status !== null) {
+            if ($hasStatus) {
+                $stmt->bindParam(':status', $status);
+            } else {
+                $attivo = ($status === 'active') ? 1 : 0;
+                $stmt->bindParam(':attivo', $attivo, PDO::PARAM_INT);
+            }
         }
         $stmt->execute();
 
@@ -195,8 +229,9 @@ class Team {
 
     // Conta membri del team
     public function getMembersCount($team_id) {
-        $query = "SELECT COUNT(*) as count FROM team_members 
-                 WHERE team_id = :team_id AND attivo = 1";
+    $hasStatus = $this->columnExists('team_members', 'status');
+    $query = "SELECT COUNT(*) as count FROM team_members 
+         WHERE team_id = :team_id AND " . ($hasStatus ? "status = 'active'" : "attivo = 1");
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -208,8 +243,9 @@ class Team {
 
     // Verifica se utente è membro del team
     public function isUserMember($user_id, $team_id) {
-        $query = "SELECT COUNT(*) as count FROM team_members 
-                 WHERE team_id = :team_id AND user_id = :user_id AND attivo = 1";
+    $hasStatus = $this->columnExists('team_members', 'status');
+    $query = "SELECT COUNT(*) as count FROM team_members 
+         WHERE team_id = :team_id AND user_id = :user_id AND " . ($hasStatus ? "status = 'active'" : "attivo = 1");
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -236,11 +272,11 @@ class Team {
 
     // Ottieni richieste di adesione pendenti
     public function getPendingRequests($team_id) {
-        $query = "SELECT jr.*, u.nome, u.cognome, u.email 
-                 FROM team_join_requests jr
-                 JOIN users u ON jr.user_id = u.id
-                 WHERE jr.team_id = :team_id AND jr.status = 'pending'
-                 ORDER BY jr.created_at DESC";
+    $query = "SELECT jr.*, u.nome, u.cognome, u.email 
+         FROM team_join_requests jr
+         JOIN users u ON jr.user_id = u.id
+         WHERE jr.team_id = :team_id AND jr.status = 'pending'
+         ORDER BY jr.data_richiesta DESC";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -252,7 +288,7 @@ class Team {
     // Verifica se utente è membro del team (metodo legacy)
     public function isMember($team_id, $user_id) {
         $query = "SELECT COUNT(*) as count FROM team_members 
-                 WHERE team_id = :team_id AND user_id = :user_id AND attivo = 1";
+                 WHERE team_id = :team_id AND user_id = :user_id AND status = 'active'";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -265,8 +301,10 @@ class Team {
 
     // Verifica se utente può gestire il team
     public function canManage($team_id, $user_id) {
+        $hasStatus = $this->columnExists('team_members', 'status');
+        $activeCond = $hasStatus ? "status = 'active'" : "attivo = 1";
         $query = "SELECT ruolo FROM team_members 
-                 WHERE team_id = :team_id AND user_id = :user_id AND attivo = 1";
+                 WHERE team_id = :team_id AND user_id = :user_id AND {$activeCond}";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $team_id);
@@ -274,17 +312,20 @@ class Team {
         $stmt->execute();
 
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result && in_array($result['ruolo'], ['admin', 'captain']);
+    return $result && in_array($result['ruolo'], ['manager', 'captain']);
     }
 
     // Ottieni team di un utente
     public function getUserTeams($user_id) {
-        // Prima prova con team_members
-        $query = "SELECT t.*, tm.ruolo, tm.data_join as joined_at
+        $hasStatus = $this->columnExists('team_members', 'status');
+        $hasJoinedAt = $this->columnExists('team_members', 'joined_at');
+        $joinedCol = $hasJoinedAt ? 'tm.joined_at' : 'tm.data_iscrizione';
+        $activeCond = $hasStatus ? "tm.status = 'active'" : "tm.attivo = 1";
+        $query = "SELECT t.*, tm.ruolo, {$joinedCol} as joined_at
                  FROM " . $this->table . " t
-                 JOIN team_members tm ON t.team_id = tm.team_id
-                 WHERE tm.user_id = :user_id AND tm.stato = 'attivo' AND t.stato = 'active'
-                 ORDER BY tm.ruolo DESC, t.nome_team ASC";
+                 JOIN team_members tm ON t.id = tm.team_id
+                 WHERE tm.user_id = :user_id AND {$activeCond} AND t.status = 'active'
+                 ORDER BY tm.ruolo DESC, t.nome ASC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -294,11 +335,11 @@ class Team {
         
         // Se non ci sono risultati, prova con team_join_requests approvate
         if (empty($results)) {
-            $query = "SELECT t.*, jr.processed_at as joined_at
+            $query = "SELECT t.*, jr.data_risposta as joined_at
                      FROM " . $this->table . " t
-                     JOIN team_join_requests jr ON t.team_id = jr.team_id
-                     WHERE jr.user_id = :user_id AND jr.status = 'approved' AND t.stato = 'active'
-                     ORDER BY t.nome_team ASC";
+                     JOIN team_join_requests jr ON t.id = jr.team_id
+                     WHERE jr.user_id = :user_id AND jr.status = 'approved' AND t.status = 'active'
+                     ORDER BY t.nome ASC";
 
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':user_id', $user_id);
@@ -312,8 +353,10 @@ class Team {
 
     // Statistiche team
     public function getTeamStats($team_id) {
-        $stats_query = "SELECT 
-                           (SELECT COUNT(*) FROM team_members WHERE team_id = :team_id AND attivo = 1) as membri_attivi,
+    $hasStatus = $this->columnExists('team_members', 'status');
+    $memberActiveCond = $hasStatus ? "status = 'active'" : "attivo = 1";
+    $stats_query = "SELECT 
+               (SELECT COUNT(*) FROM team_members WHERE team_id = :team_id AND {$memberActiveCond}) as membri_attivi,
                            (SELECT COUNT(*) FROM team_registrations WHERE team_id = :team_id2) as iscrizioni_eventi,
                            (SELECT COUNT(*) FROM team_registrations WHERE team_id = :team_id3 AND status = 'completed') as eventi_completati,
                            (SELECT COALESCE(SUM(quota_totale), 0) FROM team_registrations WHERE team_id = :team_id4 AND status IN ('confirmed', 'completed')) as totale_speso";
@@ -365,7 +408,7 @@ class Team {
     // Richiedi di unirti al team
     public function requestToJoin($userId, $messaggio = '') {
         $query = "INSERT INTO team_join_requests 
-                 SET team_id = :team_id, user_id = :user_id, message = :message,
+                 SET team_id = :team_id, user_id = :user_id, messaggio = :message,
                      status = 'pending'";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':team_id', $this->id);
@@ -488,10 +531,10 @@ class Team {
      * Ottieni richiesta di adesione per ID
      */
     public function getJoinRequest($request_id) {
-        $query = "SELECT jr.*, u.nome, u.cognome, u.email, t.nome_team as team_name
-                 FROM team_join_requests jr
-                 JOIN users u ON jr.user_id = u.id
-                 JOIN teams t ON jr.team_id = t.team_id
+    $query = "SELECT jr.*, u.nome, u.cognome, u.email, t.nome as team_name
+         FROM team_join_requests jr
+         JOIN users u ON jr.user_id = u.id
+         JOIN teams t ON jr.team_id = t.id
                  WHERE jr.id = :request_id";
         
         $stmt = $this->conn->prepare($query);
@@ -514,8 +557,8 @@ class Team {
             $this->conn->beginTransaction();
 
             // Aggiungi utente al team
-            $query = "INSERT INTO team_members (team_id, user_id, ruolo, attivo, data_iscrizione) 
-                     VALUES (:team_id, :user_id, 'membro', 1, NOW())";
+            $query = "INSERT INTO team_members (team_id, user_id, ruolo, status) 
+                     VALUES (:team_id, :user_id, 'member', 'active')";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':team_id', $request['team_id']);
@@ -556,7 +599,7 @@ class Team {
      * Rimuovi membro dal team
      */
     public function removeMember($team_id, $user_id) {
-        $query = "UPDATE team_members SET attivo = 0, data_uscita = NOW() 
+    $query = "UPDATE team_members SET status = 'inactive' 
                  WHERE team_id = :team_id AND user_id = :user_id";
         
         $stmt = $this->conn->prepare($query);

@@ -29,18 +29,18 @@ class EventProduct {
     // Crea nuovo prodotto
     public function create($data) {
         $query = "INSERT INTO " . $this->table . " 
-                 (evento_id, nome, descrizione, tipo_prodotto, prezzo, 
+                 (evento_id, nome, descrizione, categoria, prezzo, 
                   quantita_disponibile, quantita_venduta, immagine, 
-                  organizer_id, attivo, data_creazione) 
-                 VALUES (:evento_id, :nome, :descrizione, :tipo_prodotto, :prezzo,
+                  organizer_id, attivo) 
+                 VALUES (:evento_id, :nome, :descrizione, :categoria, :prezzo,
                         :quantita_disponibile, :quantita_venduta, :immagine,
-                        :organizer_id, :attivo, NOW())";
-        
+                        :organizer_id, :attivo)";
+
         $params = [
             ':evento_id' => $data['event_id'],
             ':nome' => $data['nome'],
             ':descrizione' => $data['descrizione'] ?? '',
-            ':tipo_prodotto' => $data['tipo_prodotto'],
+            ':categoria' => $data['categoria'],
             ':prezzo' => $data['prezzo'],
             ':quantita_disponibile' => $data['quantita_disponibile'],
             ':quantita_venduta' => $data['quantita_venduta'] ?? 0,
@@ -48,7 +48,7 @@ class EventProduct {
             ':organizer_id' => $data['organizer_id'],
             ':attivo' => $data['attivo'] ?? 1
         ];
-        
+
         $stmt = $this->conn->prepare($query);
         if ($stmt->execute($params)) {
             $this->id = $this->conn->lastInsertId();
@@ -59,13 +59,13 @@ class EventProduct {
 
     // Leggi tutti i prodotti pubblici (per lo shop)
     public function readAll($filters = []) {
-        $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento,
-                         u.nome as organizer_nome, u.cognome as organizer_cognome,
-                         (p.quantita_disponibile - p.quantita_venduta) as disponibili
-                 FROM " . $this->table . " p
-                 LEFT JOIN events e ON p.evento_id = e.event_id
-                 LEFT JOIN users u ON p.organizer_id = u.user_id
-                 WHERE p.attivo = 1";
+    $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento,
+             u.nome as organizer_nome, u.cognome as organizer_cognome,
+             (p.quantita_disponibile - p.quantita_venduta) as disponibili
+         FROM " . $this->table . " p
+         LEFT JOIN events e ON p.evento_id = e.id
+         LEFT JOIN users u ON p.organizer_id = u.id
+         WHERE p.attivo = 1";
 
         $params = [];
         
@@ -92,7 +92,7 @@ class EventProduct {
             $query .= " AND (p.quantita_disponibile - p.quantita_venduta) > 0";
         }
 
-        $query .= " ORDER BY p.created_at DESC";
+    $query .= " ORDER BY p.created_at DESC";
 
         $stmt = $this->conn->prepare($query);
         foreach ($params as $key => $value) {
@@ -104,16 +104,16 @@ class EventProduct {
 
     // Leggi prodotti di un organizzatore
     public function getByOrganizer($organizer_id) {
-        $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento,
-                         (p.quantita_disponibile - p.quantita_venduta) as disponibili,
-                         COUNT(o.id) as ordini_totali,
-                         SUM(o.quantita * o.prezzo_unitario) as fatturato_totale
-                 FROM " . $this->table . " p
-                 LEFT JOIN events e ON p.evento_id = e.event_id
-                 LEFT JOIN product_orders o ON p.id = o.prodotto_id
-                 WHERE p.organizer_id = :organizer_id
-                 GROUP BY p.id
-                 ORDER BY p.created_at DESC";
+    $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento,
+             (p.quantita_disponibile - p.quantita_venduta) as disponibili,
+             COUNT(o.id) as ordini_totali,
+             SUM(o.quantita * o.prezzo_unitario) as fatturato_totale
+         FROM " . $this->table . " p
+         LEFT JOIN events e ON p.evento_id = e.id
+         LEFT JOIN product_orders o ON p.id = o.prodotto_id
+         WHERE p.organizer_id = :organizer_id
+         GROUP BY p.id
+         ORDER BY p.created_at DESC";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':organizer_id', $organizer_id);
@@ -123,13 +123,13 @@ class EventProduct {
 
     // Leggi singolo prodotto
     public function readOne() {
-        $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento, e.luogo_partenza,
-                         u.nome as organizer_nome, u.cognome as organizer_cognome,
-                         (p.quantita_disponibile - p.quantita_venduta) as disponibili
-                 FROM " . $this->table . " p
-                 LEFT JOIN events e ON p.evento_id = e.event_id
-                 LEFT JOIN users u ON p.organizer_id = u.user_id
-                 WHERE p.id = :id";
+    $query = "SELECT p.*, e.titolo as evento_nome, e.data_evento, e.luogo_partenza,
+             u.nome as organizer_nome, u.cognome as organizer_cognome,
+             (p.quantita_disponibile - p.quantita_venduta) as disponibili
+         FROM " . $this->table . " p
+         LEFT JOIN events e ON p.evento_id = e.id
+         LEFT JOIN users u ON p.organizer_id = u.id
+         WHERE p.id = :id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $this->id);
@@ -159,14 +159,14 @@ class EventProduct {
 
     // Aggiorna prodotto
     public function update($id, $data) {
-        $query = "UPDATE " . $this->table . " SET
-                 nome = :nome,
-                 descrizione = :descrizione,
-                 prezzo = :prezzo,
-                 quantita_disponibile = :quantita_disponibile,
-                 tipo_prodotto = :tipo_prodotto,
-                 attivo = :attivo
-                 WHERE product_id = :id";
+    $query = "UPDATE " . $this->table . " SET
+         nome = :nome,
+         descrizione = :descrizione,
+         categoria = :categoria,
+         prezzo = :prezzo,
+         quantita_disponibile = :quantita_disponibile,
+         attivo = :attivo
+         WHERE id = :id";
                  
         $params = [
             ':id' => $id,
@@ -174,7 +174,7 @@ class EventProduct {
             ':descrizione' => $data['descrizione'],
             ':prezzo' => $data['prezzo'],
             ':quantita_disponibile' => $data['quantita_disponibile'],
-            ':tipo_prodotto' => $data['tipo_prodotto'],
+            ':categoria' => $data['categoria'],
             ':attivo' => $data['attivo'] ?? 1
         ];
         
@@ -235,15 +235,14 @@ class EventProduct {
 
     // Ottieni statistiche prodotto
     public function getStats() {
-        $query = "SELECT 
-                    COUNT(o.id) as ordini_totali,
-                    SUM(o.quantita) as pezzi_venduti,
-                    SUM(o.quantita * o.prezzo_unitario) as fatturato,
-                    AVG(r.rating) as rating_medio
-                 FROM " . $this->table . " p
-                 LEFT JOIN product_orders o ON p.id = o.product_id
-                 LEFT JOIN product_reviews r ON p.id = r.product_id
-                 WHERE p.id = :id";
+          $query = "SELECT 
+                          COUNT(o.id) as ordini_totali,
+                          SUM(o.quantita) as pezzi_venduti,
+                          SUM(o.quantita * o.prezzo_unitario) as fatturato,
+                          NULL as rating_medio
+                      FROM " . $this->table . " p
+                      LEFT JOIN product_orders o ON p.id = o.prodotto_id
+                      WHERE p.id = :id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $this->id);

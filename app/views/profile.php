@@ -180,7 +180,6 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                     <select name="sesso" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                                         <option value="M" <?= ($userData['sesso'] ?? '') === 'M' ? 'selected' : '' ?>>Maschio</option>
                                         <option value="F" <?= ($userData['sesso'] ?? '') === 'F' ? 'selected' : '' ?>>Femmina</option>
-                                        <option value="altro" <?= ($userData['sesso'] ?? '') === 'altro' ? 'selected' : '' ?>>Altro</option>
                                     </select>
                                 </div>
                             </div>
@@ -230,14 +229,14 @@ $activeTab = $_GET['tab'] ?? 'profile';
                         <div class="mb-8">
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Certificato Medico</h3>
                             
-                            <?php if ($userData['certificato_medico']): ?>
+                            <?php if (!empty($userData['certificato_medico'])): ?>
                                 <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-4">
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <h4 class="font-medium text-green-900">Certificato Caricato</h4>
                                             <p class="text-sm text-green-700">
-                                                Tipo: <?= ucfirst($userData['tipo_certificato']) ?>
-                                                <?php if ($userData['scadenza_certificato']): ?>
+                                                Tipo: <?= ucfirst($userData['tipo_certificato'] ?? 'Non specificato') ?>
+                                                <?php if (!empty($userData['scadenza_certificato'])): ?>
                                                     • Scadenza: <?= date('d/m/Y', strtotime($userData['scadenza_certificato'])) ?>
                                                     <?php if ($user->isCertificatoScaduto()): ?>
                                                         <span class="text-red-600 font-medium">• SCADUTO</span>
@@ -285,7 +284,7 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                 </div>
                                 
                                 <button type="submit" class="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors">
-                                    <?= $userData['certificato_medico'] ? 'Aggiorna' : 'Carica' ?> Certificato
+                                    <?= !empty($userData['certificato_medico']) ? 'Aggiorna' : 'Carica' ?> Certificato
                                 </button>
                             </form>
                         </div>
@@ -294,7 +293,7 @@ $activeTab = $_GET['tab'] ?? 'profile';
                         <div class="pt-8 border-t border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Tessera di Affiliazione</h3>
                             
-                            <?php if ($userData['tessera_affiliazione']): ?>
+                            <?php if (!empty($userData['tessera_affiliazione'])): ?>
                                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-4">
                                     <div class="flex items-center justify-between">
                                         <div>
@@ -322,7 +321,7 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                 </div>
                                 
                                 <button type="submit" class="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors">
-                                    <?= $userData['tessera_affiliazione'] ? 'Aggiorna' : 'Carica' ?> Tessera
+                                    <?= !empty($userData['tessera_affiliazione']) ? 'Aggiorna' : 'Carica' ?> Tessera
                                 </button>
                             </form>
                         </div>
@@ -339,14 +338,23 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                             <h3 class="text-lg font-semibold text-gray-900"><?= htmlspecialchars($registration['event_title']) ?></h3>
                                             <span class="px-3 py-1 rounded-full text-sm font-medium 
                                                 <?php 
-                                                switch($registration['status']) {
-                                                    case 'confirmed': echo 'bg-green-100 text-green-600'; break;
+                                                switch($registration['status'] ?? 'pending') {
+                                                    case 'confermata': echo 'bg-green-100 text-green-600'; break;
+                                                    case 'pagata': echo 'bg-blue-100 text-blue-600'; break;
                                                     case 'pending': echo 'bg-yellow-100 text-yellow-600'; break;
-                                                    case 'cancelled': echo 'bg-red-100 text-red-600'; break;
+                                                    case 'annullata': echo 'bg-red-100 text-red-600'; break;
                                                     default: echo 'bg-gray-100 text-gray-600';
                                                 }
                                                 ?>">
-                                                <?= ucfirst($registration['status']) ?>
+                                                <?php
+                                                $statusLabels = [
+                                                    'confermata' => 'Confermata',
+                                                    'pagata' => 'Pagata',  
+                                                    'pending' => 'In Attesa',
+                                                    'annullata' => 'Annullata'
+                                                ];
+                                                echo $statusLabels[$registration['status'] ?? 'pending'] ?? 'Sconosciuto';
+                                                ?>
                                             </span>
                                         </div>
                                         
@@ -368,14 +376,14 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                         <div class="flex items-center justify-between">
                                             <div>
                                                 <span class="text-lg font-bold text-primary-600">€<?= number_format($registration['prezzo_pagato'], 2) ?></span>
-                                                <span class="text-sm text-gray-500 ml-2">Iscritto il <?= date('d/m/Y', strtotime($registration['created_at'])) ?></span>
+                                                <span class="text-sm text-gray-500 ml-2">Iscritto il <?= $registration['created_at'] ? date('d/m/Y', strtotime($registration['created_at'])) : 'Data non disponibile' ?></span>
                                             </div>
                                             <div class="flex space-x-2">
                                                 <a href="/events/<?= $registration['event_id'] ?>" 
                                                    class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
                                                     Dettagli Evento
                                                 </a>
-                                                <?php if ($registration['receipt_number']): ?>
+                                                <?php if (!empty($registration['receipt_number'])): ?>
                                                     <a href="/uploads/<?= $registration['receipt_pdf'] ?>" target="_blank"
                                                        class="bg-primary-100 text-primary-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-200 transition-colors">
                                                         Ricevuta
@@ -413,8 +421,8 @@ $activeTab = $_GET['tab'] ?? 'profile';
                                             </div>
                                             <div class="text-right">
                                                 <div class="text-lg font-bold text-gray-900">€<?= number_format($receipt['amount'], 2) ?></div>
-                                                <div class="text-sm text-gray-500"><?= ucfirst($receipt['payment_method']) ?></div>
-                                                <?php if ($receipt['pdf_file']): ?>
+                                                <div class="text-sm text-gray-500"><?= ucfirst($receipt['payment_method'] ?? 'Metodo non specificato') ?></div>
+                                                <?php if (!empty($receipt['pdf_file'])): ?>
                                                     <a href="/uploads/<?= $receipt['pdf_file'] ?>" target="_blank"
                                                        class="inline-flex items-center mt-2 text-primary-600 hover:text-primary-700 text-sm font-medium">
                                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,7 +4,7 @@
  */
 class UserNotification {
     private $conn;
-    private $table = 'user_notifications';
+    private $table = 'notifications';
 
     public $id;
     public $user_id;
@@ -20,15 +20,31 @@ class UserNotification {
         $this->conn = $db;
     }
 
+    private function columnExists($table, $column) {
+        try {
+            $stmt = $this->conn->prepare("SHOW COLUMNS FROM `{$table}` LIKE :col");
+            $stmt->bindValue(':col', $column);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
     // Ottieni notifiche per utente
     public function getUserNotifications($user_id, $limit = 20, $offset = 0) {
+        $hasMessageId = $this->columnExists($this->table, 'message_id');
+        $selectMsg = $hasMessageId 
+            ? "em.subject as message_title, em.message as message_content"
+            : "n.titolo as message_title, n.messaggio as message_content";
+
         $query = "SELECT n.*, e.titolo as event_title, e.data_evento, e.luogo_partenza,
                         e.organizer_id, u.nome as organizer_name, u.cognome as organizer_surname,
-                        em.title as message_title, em.message as message_content
+                        {$selectMsg}
                  FROM " . $this->table . " n
-                 JOIN events e ON n.event_id = e.event_id
-                 LEFT JOIN event_messages em ON n.message_id = em.id
-                 LEFT JOIN users u ON e.organizer_id = u.user_id
+                 LEFT JOIN events e ON n.event_id = e.id
+                 " . ($hasMessageId ? "LEFT JOIN event_messages em ON n.message_id = em.id" : "") . "
+                 LEFT JOIN users u ON e.organizer_id = u.id
                  WHERE n.user_id = :user_id
                  ORDER BY n.created_at DESC
                  LIMIT :limit OFFSET :offset";
@@ -44,8 +60,10 @@ class UserNotification {
 
     // Conta notifiche non lette
     public function getUnreadCount($user_id) {
-        $query = "SELECT COUNT(*) as count FROM " . $this->table . " 
-                 WHERE user_id = :user_id AND is_read = FALSE";
+    $readCol = $this->columnExists($this->table, 'is_read') ? 'is_read' : ($this->columnExists($this->table, 'letta') ? 'letta' : null);
+    $readCond = $readCol ? "$readCol = FALSE" : "1=1";
+    $query = "SELECT COUNT(*) as count FROM " . $this->table . " 
+         WHERE user_id = :user_id AND {$readCond}";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -57,9 +75,12 @@ class UserNotification {
 
     // Marca notifica come letta
     public function markAsRead($notification_id, $user_id) {
-        $query = "UPDATE " . $this->table . " 
-                 SET is_read = TRUE, read_at = NOW() 
-                 WHERE id = :id AND user_id = :user_id";
+    $readCol = $this->columnExists($this->table, 'is_read') ? 'is_read' : ($this->columnExists($this->table, 'letta') ? 'letta' : null);
+    $hasReadAt = $this->columnExists($this->table, 'read_at');
+    $set = $readCol ? "$readCol = TRUE" : "";
+    if ($hasReadAt) { $set .= ($set ? ", " : "") . "read_at = NOW()"; }
+    if (!$set) { $set = 'updated_at = NOW()'; }
+    $query = "UPDATE " . $this->table . " SET {$set} WHERE id = :id AND user_id = :user_id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':id', $notification_id);
@@ -70,9 +91,13 @@ class UserNotification {
 
     // Marca tutte le notifiche come lette
     public function markAllAsRead($user_id) {
-        $query = "UPDATE " . $this->table . " 
-                 SET is_read = TRUE, read_at = NOW() 
-                 WHERE user_id = :user_id AND is_read = FALSE";
+    $readCol = $this->columnExists($this->table, 'is_read') ? 'is_read' : ($this->columnExists($this->table, 'letta') ? 'letta' : null);
+    $hasReadAt = $this->columnExists($this->table, 'read_at');
+    $set = $readCol ? "$readCol = TRUE" : "";
+    if ($hasReadAt) { $set .= ($set ? ", " : "") . "read_at = NOW()"; }
+    if (!$set) { $set = 'updated_at = NOW()'; }
+    $whereUnread = $readCol ? "$readCol = FALSE" : "1=1";
+    $query = "UPDATE " . $this->table . " SET {$set} WHERE user_id = :user_id AND {$whereUnread}";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -94,15 +119,18 @@ class UserNotification {
 
     // Ottieni statistiche notifiche utente
     public function getUserStats($user_id) {
-        $query = "SELECT 
-                    COUNT(*) as total_notifications,
-                    COUNT(CASE WHEN is_read = TRUE THEN 1 END) as read_notifications,
-                    COUNT(CASE WHEN is_read = FALSE THEN 1 END) as unread_notifications,
-                    COUNT(DISTINCT event_id) as events_with_messages,
-                    MIN(created_at) as first_notification,
-                    MAX(created_at) as last_notification
-                 FROM " . $this->table . "
-                 WHERE user_id = :user_id";
+          $readCol = $this->columnExists($this->table, 'is_read') ? 'is_read' : ($this->columnExists($this->table, 'letta') ? 'letta' : null);
+          $readExpr = $readCol ? "COUNT(CASE WHEN {$readCol} = TRUE THEN 1 END)" : "0";
+          $unreadExpr = $readCol ? "COUNT(CASE WHEN {$readCol} = FALSE THEN 1 END)" : "COUNT(*)";
+          $query = "SELECT 
+                          COUNT(*) as total_notifications,
+                          {$readExpr} as read_notifications,
+                          {$unreadExpr} as unread_notifications,
+                          COUNT(DISTINCT event_id) as events_with_messages,
+                          MIN(created_at) as first_notification,
+                          MAX(created_at) as last_notification
+                      FROM " . $this->table . "
+                      WHERE user_id = :user_id";
 
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':user_id', $user_id);
@@ -113,12 +141,17 @@ class UserNotification {
 
     // Ottieni notifiche recenti (ultime 24 ore)
     public function getRecentNotifications($user_id, $hours = 24) {
+        $hasMessageId = $this->columnExists($this->table, 'message_id');
+        $selectMsg = $hasMessageId 
+            ? "em.subject as message_title, em.message as message_content"
+            : "n.titolo as message_title, n.messaggio as message_content";
+        $organizerJoin = $hasMessageId ? 'em.organizer_id' : 'e.organizer_id';
         $query = "SELECT n.*, e.titolo as event_title, e.data_evento,
-                        em.organizer_id, u.nome as organizer_name, u.cognome as organizer_surname
+                        {$selectMsg}, u.nome as organizer_name, u.cognome as organizer_surname
                  FROM " . $this->table . " n
-                 JOIN events e ON n.event_id = e.id
-                 JOIN event_messages em ON n.message_id = em.id
-                 JOIN users u ON em.organizer_id = u.id
+                 LEFT JOIN events e ON n.event_id = e.id
+                 " . ($hasMessageId ? "LEFT JOIN event_messages em ON n.message_id = em.id" : "") . "
+                 LEFT JOIN users u ON {$organizerJoin} = u.id
                  WHERE n.user_id = :user_id 
                  AND n.created_at >= DATE_SUB(NOW(), INTERVAL :hours HOUR)
                  ORDER BY n.created_at DESC";
@@ -133,12 +166,17 @@ class UserNotification {
 
     // Ottieni notifiche per evento specifico
     public function getEventNotifications($user_id, $event_id) {
+        $hasMessageId = $this->columnExists($this->table, 'message_id');
+        $selectMsg = $hasMessageId 
+            ? "em.subject as message_title, em.message as message_content"
+            : "n.titolo as message_title, n.messaggio as message_content";
+        $organizerJoin = $hasMessageId ? 'em.organizer_id' : 'e.organizer_id';
         $query = "SELECT n.*, e.titolo as event_title, e.data_evento,
-                        em.organizer_id, u.nome as organizer_name, u.cognome as organizer_surname
+                        {$selectMsg}, u.nome as organizer_name, u.cognome as organizer_surname
                  FROM " . $this->table . " n
-                 JOIN events e ON n.event_id = e.id
-                 JOIN event_messages em ON n.message_id = em.id
-                 JOIN users u ON em.organizer_id = u.id
+                 LEFT JOIN events e ON n.event_id = e.id
+                 " . ($hasMessageId ? "LEFT JOIN event_messages em ON n.message_id = em.id" : "") . "
+                 LEFT JOIN users u ON {$organizerJoin} = u.id
                  WHERE n.user_id = :user_id AND n.event_id = :event_id
                  ORDER BY n.created_at DESC";
 
@@ -163,12 +201,17 @@ class UserNotification {
 
     // Ottieni dettagli singola notifica
     public function getNotification($notification_id, $user_id) {
+        $hasMessageId = $this->columnExists($this->table, 'message_id');
+        $selectMsg = $hasMessageId 
+            ? "em.subject as message_title, em.message as message_content"
+            : "n.titolo as message_title, n.messaggio as message_content";
+        $organizerJoin = $hasMessageId ? 'em.organizer_id' : 'e.organizer_id';
         $query = "SELECT n.*, e.titolo as event_title, e.data_evento, e.luogo_partenza,
-                        em.organizer_id, u.nome as organizer_name, u.cognome as organizer_surname
+                        {$selectMsg}, u.nome as organizer_name, u.cognome as organizer_surname
                  FROM " . $this->table . " n
-                 JOIN events e ON n.event_id = e.id
-                 JOIN event_messages em ON n.message_id = em.id
-                 JOIN users u ON em.organizer_id = u.id
+                 LEFT JOIN events e ON n.event_id = e.id
+                 " . ($hasMessageId ? "LEFT JOIN event_messages em ON n.message_id = em.id" : "") . "
+                 LEFT JOIN users u ON {$organizerJoin} = u.id
                  WHERE n.id = :id AND n.user_id = :user_id";
 
         $stmt = $this->conn->prepare($query);

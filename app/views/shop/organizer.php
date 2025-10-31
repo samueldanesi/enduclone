@@ -66,7 +66,7 @@
             padding: 25px;
             text-align: center;
             backdrop-filter: blur(10px);
-            color: white;
+            color: #333;
             transition: transform 0.3s ease;
         }
 
@@ -172,7 +172,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #333;
             font-size: 1.2rem;
         }
 

@@ -469,7 +469,7 @@
                                     <i class="fas fa-info-circle"></i> Dettagli
                                 </a>
                                 <?php if (isset($_SESSION['user_id'])): ?>
-                                    <a href="/events/<?= $event['event_id'] ?>/register" class="btn btn-secondary">
+                                        <a href="<?= BASE_URL ?>/events/<?= $event['event_id'] ?>/register" class="btn btn-secondary">
                                         <i class="fas fa-plus"></i> Iscriviti
                                     </a>
                                 <?php else: ?>
